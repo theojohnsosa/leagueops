@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+:root {
+  --color-flag-blue: #0038a8;
+  --color-flag-red: #ce1126;
+  --color-flag-yellow: #fcd116;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}
