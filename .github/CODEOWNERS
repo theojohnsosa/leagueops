@@ -1,0 +1,51 @@
+# Replace the placeholder usernames with real GitHub usernames.
+# GitHub asks the owner to review any PR that touches these paths.
+
+# Backend: Theo
+/server/models/                                  @theojohnsosa
+/server/middleware/                              @theojohnsosa
+/server/routes/index.js                          @theojohnsosa
+/server/server.js                                @theojohnsosa
+/server/utils/logger.js                          @theojohnsosa
+/server/utils/announcer.js                       @theojohnsosa
+/server/utils/appendOnly.js                      @theojohnsosa
+/server/utils/visibility.js                      @theojohnsosa
+/server/utils/mailer.js                          @theojohnsosa
+/server/controllers/auth.controller.js           @theojohnsosa
+/server/controllers/users.controller.js          @theojohnsosa
+/server/controllers/events.controller.js         @theojohnsosa
+/server/controllers/approvals.controller.js      @theojohnsosa
+
+# Backend: Andrie
+/server/utils/rulesEngine.js                     @andriehitomo
+/server/controllers/registrations.controller.js  @andriehitomo
+/server/controllers/matches.controller.js        @andriehitomo
+/server/controllers/announcements.controller.js  @andriehitomo
+
+# Backend: Jasser
+/server/utils/seed/seedSampleData.js             @cieks7
+/server/controllers/archive.controller.js        @cieks7
+/server/controllers/logs.controller.js           @cieks7
+/server/controllers/dashboard.controller.js      @cieks7
+
+# Frontend: Jeff
+/client/src/App.jsx                              @jeffenema17
+/client/src/main.jsx                             @jeffenema17
+/client/src/index.css                            @jeffenema17
+/client/src/config/                              @jeffenema17
+/client/src/context/                             @jeffenema17
+/client/src/services/api.js                      @jeffenema17
+/client/src/components/shared/                   @jeffenema17
+/client/src/pages/auth/                          @jeffenema17
+/client/src/pages/public/                        @jeffenema17
+/client/src/pages/player/                        @jeffenema17
+
+# Frontend: admin pages
+/client/src/pages/admin/users/                   @theojohnsosa
+/client/src/pages/admin/events/                  @theojohnsosa
+/client/src/pages/admin/approvals/               @theojohnsosa
+/client/src/pages/admin/registrations/           @andriehitomo
+/client/src/pages/admin/schedule/                @andriehitomo
+/client/src/pages/admin/archive/                 @cieks7
+/client/src/pages/admin/logs/                    @cieks7
+/client/src/pages/admin/dashboard/               @cieks7
