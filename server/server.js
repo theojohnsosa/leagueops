@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import registrationRoutes from "./routes/registrations.routes.js";
+import matchRoutes from "./routes/matches.routes.js";
 
 // Node's own DNS lookup is being refused on this network, so use public DNS.
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
@@ -34,6 +35,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api", registrationRoutes);
+app.use("/api", matchRoutes);
 
 // ---------- Start ----------
 const PORT = process.env.PORT || 5000;
