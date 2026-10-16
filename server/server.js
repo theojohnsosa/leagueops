@@ -2,20 +2,28 @@ import dns from "node:dns";
 import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+
 import registrationRoutes from "./routes/registrations.routes.js";
 import matchRoutes from "./routes/matches.routes.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
-// Node's own DNS lookup is being refused on this network, so use public DNS.
+import authRoutes from "./routes/auth.routes.js";
+
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
-dotenv.config();
+const currentFile = fileURLToPath(import.meta.url);
+const currentDirectory = path.dirname(currentFile);
+
+dotenv.config({
+  path: path.join(currentDirectory, ".env"),
+});
 
 const app = express();
 
-// ---------- Middleware (always BEFORE routes) ----------
 app.use(
   cors({
     origin: process.env.CLIENT_URL,
@@ -25,7 +33,6 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// ---------- Routes ----------
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
@@ -35,10 +42,17 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// API routes must come before the 404 handler.
+app.use("/api", registrationRoutes);
+app.use("/api", matchRoutes);
+
+// Authentication and API routes must come before the 404 handler.
+app.use("/api", registrationRoutes);
+app.use("/api", matchRoutes);
+app.use("/api", authRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-// ---------- Start ----------
 const PORT = process.env.PORT || 5000;
 
 mongoose
