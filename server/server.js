@@ -9,7 +9,6 @@ import cookieParser from "cookie-parser";
 
 import registrationRoutes from "./routes/registrations.routes.js";
 import matchRoutes from "./routes/matches.routes.js";
-import eventRoutes from "./routes/events.routes.js";
 import archiveRoutes from "./routes/archive.routes.js";
 // Node's own DNS lookup is being refused on this network, so use public DNS.
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
@@ -57,7 +56,6 @@ app.get("/api/health", (req, res) => {
 // Register each API route once.
 app.use("/api", registrationRoutes);
 app.use("/api", matchRoutes);
-app.use("/api", eventRoutes);
 app.use("/api", archiveRoutes);
 // ---------- Start ----------
 app.use("/api", announcementRoutes);

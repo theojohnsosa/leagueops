@@ -1,12 +1,6 @@
-
-import { Router } from "express";
-import { getDashboardStats } from "../controllers/events.controller.js";
-
-const router = Router();
-
-router.get("/dashboard/stats", getDashboardStats);
 import { Router } from "express";
 import {
+  getDashboardStats,
   getEvents,
   getArchivedEvents,
   getEventById,
@@ -19,6 +13,8 @@ import {
 import { requireAuth, requireRole } from "../middleware/auth.js";
 
 const router = Router();
+
+router.get("/dashboard/stats", getDashboardStats);
 
 // Anyone can view events.
 router.get("/events", getEvents);
