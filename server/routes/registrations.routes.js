@@ -2,39 +2,52 @@ import { Router } from "express";
 import {
   createRegistration,
   getRegistrationsByEvent,
-  listRegistrations, // NEW
+  listRegistrations,
   getMyRegistrations,
   getRegistrationById,
   updateRegistrationStatus,
   cancelRegistration,
 } from "../controllers/registrations.controller.js";
-// import { requireAuth, requireAdmin } from "../middleware/auth.js"; // your auth
+import { requireAuth, requireRole } from "../middleware/auth.js";
 
 const router = Router();
 
-router.post(
-  "/events/:eventId/registrations",
-  /* requireAuth, */ createRegistration,
-);
+const staffRoles = ["admin", "head", "committee"];
+
+// Create a registration.
+router.post("/events/:eventId/registrations", requireAuth, createRegistration);
+
+// List registrations for a specific event (staff only).
 router.get(
   "/events/:eventId/registrations",
-  /* requireAuth, requireAdmin, */ getRegistrationsByEvent,
+  requireAuth,
+  requireRole(...staffRoles),
+  getRegistrationsByEvent,
 );
 
-// NEW: admin list of all registrations (used by the admin Registrations page)
-router.get("/registrations", /* requireAuth, requireAdmin, */ listRegistrations);
+// List all registrations (staff only).
+router.get(
+  "/registrations",
+  requireAuth,
+  requireRole(...staffRoles),
+  listRegistrations,
+);
 
-// "mine" must come BEFORE "/:id", or Express treats "mine" as an ID
-router.get("/registrations/mine", /* requireAuth, */ getMyRegistrations);
-router.get("/registrations/:id", /* requireAuth, */ getRegistrationById);
+// Keep "mine" before "/:id".
+router.get("/registrations/mine", requireAuth, getMyRegistrations);
 
+// Get a specific registration.
+router.get("/registrations/:id", requireAuth, getRegistrationById);
+
+// Update registration status (staff only).
 router.patch(
   "/registrations/:id/status",
-  /* requireAuth, requireAdmin, */ updateRegistrationStatus,
+  requireAuth,
+  requireRole(...staffRoles),
+  updateRegistrationStatus,
 );
-router.patch(
-  "/registrations/:id/cancel",
-  /* requireAuth, */ cancelRegistration,
-);
+
+// Cancel a registration.
+router.patch("/registrations/:id/cancel", requireAuth, cancelRegistration);
 
 export default router;
