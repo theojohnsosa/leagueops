@@ -1,5 +1,16 @@
 import { Router } from "express";
 import * as C from "../controllers/events.controller.js";
+import {
+  getDashboardStats,
+  getEvents,
+  getArchivedEvents,
+  getEventById,
+  createEvent,
+  updateEvent,
+  archiveEvent,
+  restoreEvent,
+  completeEvent,
+} from "../controllers/events.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 
 const router = Router();
@@ -7,6 +18,10 @@ const router = Router();
 // Public event endpoints.
 router.get("/events", C.getEvents);
 router.get("/events/:id", C.getEventById);
+router.get("/dashboard/stats", getDashboardStats);
+
+// Anyone can view events.
+router.get("/events", getEvents);
 
 // Administrative dashboard.
 router.get(
