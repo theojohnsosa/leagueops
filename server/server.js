@@ -1,6 +1,7 @@
+import dotenv from "dotenv";
+import dns from "node:dns";
 import express from "express";
 import mongoose from "mongoose";
-import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import cors from "cors";
@@ -36,6 +37,13 @@ app.use(
 
 app.use(express.json());
 app.use(cookieParser());
+
+if (process.env.DEV_FAKE_ADMIN === "true") {
+  app.use((req, res, next) => {
+    req.user = { _id: "64b000000000000000000001", role: "admin" };
+    next();
+  });
+}
 
 app.get("/api/health", (req, res) => {
   res.json({

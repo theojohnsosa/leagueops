@@ -275,6 +275,82 @@ async function seed() {
     status: "pending",
   });
 
+  const mlbbEvent = events[1];
+
+  await upsertRegistration({
+    eventId: codmEvent._id,
+    submittedBy: players[0]._id,
+    teamName: "Seed Team Charlie",
+    division: "CCS",
+    rankDetails: "Epic",
+    playerDetails: [
+      {
+        userId: players[0]._id,
+        studentId: players[0].studentId,
+        firstName: players[0].firstName,
+        lastName: players[0].lastName,
+        inGameName: players[0].inGameName,
+      },
+    ],
+    status: "pending",
+    rejectionReason: "Incomplete roster",
+  });
+
+  await upsertRegistration({
+    eventId: codmEvent._id,
+    submittedBy: players[1]._id,
+    teamName: "Seed Team Delta",
+    division: "CBA",
+    rankDetails: "Master",
+    playerDetails: [
+      {
+        userId: players[1]._id,
+        studentId: players[1].studentId,
+        firstName: players[1].firstName,
+        lastName: players[1].lastName,
+        inGameName: players[1].inGameName,
+      },
+    ],
+    status: "cancelled",
+    cancelledAt: new Date(),
+  });
+
+  await upsertRegistration({
+    eventId: mlbbEvent._id,
+    submittedBy: players[0]._id,
+    teamName: "=SUM(1)", // tests CSV formula protection
+    division: "COE",
+    rankDetails: "Mythic",
+    playerDetails: [
+      {
+        userId: players[0]._id,
+        studentId: players[0].studentId,
+        firstName: players[0].firstName,
+        lastName: players[0].lastName,
+        inGameName: players[0].inGameName,
+      },
+    ],
+    status: "pending",
+  });
+
+  await upsertRegistration({
+    eventId: mlbbEvent._id,
+    submittedBy: players[2]._id,
+    teamName: "MLBB Warriors",
+    division: "Open",
+    rankDetails: "Legend",
+    playerDetails: [
+      {
+        userId: players[2]._id,
+        studentId: players[2].studentId,
+        firstName: players[2].firstName,
+        lastName: players[2].lastName,
+        inGameName: players[2].inGameName,
+      },
+    ],
+    status: "pending",
+  });
+
   await upsertMatch({
     eventId: codmEvent._id,
     matchNumber: 1,
@@ -292,7 +368,7 @@ async function seed() {
   console.log("Seed completed successfully.");
   console.log(`Admin email: ${admin.studentEmail}`);
   console.log(`Events: ${events.length}`);
-  console.log("Registrations: 2");
+  console.log("Registrations: 6");
   console.log("Matches: 1");
 }
 

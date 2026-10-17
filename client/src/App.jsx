@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
+import { Route, Routes } from "react-router-dom";
 import axios from "axios";
+import Header from "./components/Header.jsx";
+import Registrations from "./pages/admin/registrations.jsx";
 
-export default function App() {
+function Home() {
   const [health, setHealth] = useState(null);
   const [error, setError] = useState("");
 
@@ -28,5 +31,27 @@ export default function App() {
         {!health && !error && <p className="text-gray-500">Checking API...</p>}
       </div>
     </div>
+  );
+}
+
+// Shown for header links whose pages are not built yet.
+function NotBuilt() {
+  return (
+    <>
+      <Header />
+      <main className="mx-auto max-w-3xl p-10 text-center text-gray-500">
+        This page has not been built yet.
+      </main>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/admin/registrations" element={<Registrations />} />
+      <Route path="*" element={<NotBuilt />} />
+    </Routes>
   );
 }
