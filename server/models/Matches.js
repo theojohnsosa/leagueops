@@ -5,7 +5,12 @@ export const STATUSES = ["scheduled", "ongoing", "completed", "cancelled"];
 
 const matchSchema = new mongoose.Schema(
   {
-    eventId: { type: mongoose.Schema.Types.ObjectId, ref: "Event", required: true, index: true },
+    eventId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Event",
+      required: true,
+      index: true,
+    },
     matchNumber: { type: Number },
     round: { type: String, trim: true },
     // ERD says ObjectId (Registrations); treated here as a String label
@@ -23,7 +28,7 @@ const matchSchema = new mongoose.Schema(
     scoreB: { type: Number, min: 0 },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 matchSchema.index({ eventId: 1, matchNumber: 1 });
