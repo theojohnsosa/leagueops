@@ -31,11 +31,32 @@ if (process.env.NODE_ENV === "production") {
 }
 
 async function upsertUser(data) {
-  return User.findOneAndUpdate(
-    { studentEmail: data.studentEmail.toLowerCase() },
-    { $set: data },
-    { upsert: true, returnDocument: "after", runValidators: true },
-  );
+  const email = data.studentEmail.trim().toLowerCase();
+  const studentId = data.studentId.trim();
+
+  const existingUser = await User.findOne({
+    studentEmail: email,
+  });
+
+  if (existingUser) {
+    return existingUser;
+  }
+
+  const existingStudentId = await User.findOne({
+    studentId,
+  });
+
+  if (existingStudentId) {
+    throw new Error(
+      `Seed conflict: student ID ${studentId} belongs to another account.`,
+    );
+  }
+
+  return User.create({
+    ...data,
+    studentId,
+    studentEmail: email,
+  });
 }
 
 async function upsertEvent(data) {
@@ -58,7 +79,7 @@ async function upsertMatch(data) {
   return Match.findOneAndUpdate(
     { eventId: data.eventId, matchNumber: data.matchNumber },
     { $set: data },
-    { upsert: true, new: true, runValidators: true },
+    { upsert: true, returnDocument: "after", runValidators: true },
   );
 }
 
