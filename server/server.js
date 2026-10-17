@@ -9,12 +9,15 @@ import cookieParser from "cookie-parser";
 
 import registrationRoutes from "./routes/registrations.routes.js";
 import matchRoutes from "./routes/matches.routes.js";
-import announcementRoutes from "./routes/announcements.routes.js";
-import { notFound, errorHandler } from "./middleware/errorHandler.js";
-
-import authRoutes from "./routes/auth.routes.js";
-
+import eventRoutes from "./routes/events.routes.js";
+import archiveRoutes from "./routes/archive.routes.js";
+// Node's own DNS lookup is being refused on this network, so use public DNS.
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
+import announcementRoutes from "./routes/announcements.routes.js";
+import authRoutes from "./routes/auth.routes.js";
+import eventRoutes from "./routes/events.routes.js";
+import approvalRoutes from "./routes/approvals.routes.js";
+import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -27,10 +30,11 @@ const app = express();
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
     credentials: true,
   }),
 );
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -50,10 +54,18 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Authentication and API routes must come before the 404 handler.
+// Register each API route once.
 app.use("/api", registrationRoutes);
 app.use("/api", matchRoutes);
+app.use("/api", eventRoutes);
+app.use("/api", archiveRoutes);
+// ---------- Start ----------
+app.use("/api", announcementRoutes);
 app.use("/api", authRoutes);
+app.use("/api", eventRoutes);
+app.use("/api", approvalRoutes);
+
+// Error handlers must come after all API routes.
 app.use(notFound);
 app.use(errorHandler);
 
