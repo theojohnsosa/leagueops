@@ -153,6 +153,27 @@ export async function getRegistrationsByEvent(req, res) {
   }
 }
 
+// NEW ---------- GET /api/registrations ----------
+// Admin list of ALL registrations, with each event's title, game and mode filled in.
+export async function listRegistrations(req, res) {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ message: "Admin access required." });
+    }
+
+    const registrations = await Registration.find()
+      .populate("eventId", "title game registrationMode")
+      .sort({ createdAt: -1 })
+      .limit(1000)
+      .lean();
+
+    return res.json(registrations);
+  } catch (err) {
+    console.error("listRegistrations error:", err);
+    return res.status(500).json({ message: "Server error." });
+  }
+}
+
 export async function getMyRegistrations(req, res) {
   try {
     const userId = currentUserId(req);
@@ -199,6 +220,11 @@ export async function getRegistrationById(req, res) {
 
 export async function updateRegistrationStatus(req, res) {
   try {
+    // NEW: only admins can accept, reject or reopen a registration.
+    if (!isAdmin(req)) {
+      return res.status(403).json({ message: "Admin access required." });
+    }
+
     const { id } = req.params;
     const { status, rejectionReason } = req.body;
 

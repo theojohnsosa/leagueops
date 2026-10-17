@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   createRegistration,
   getRegistrationsByEvent,
+  listRegistrations, // NEW
   getMyRegistrations,
   getRegistrationById,
   updateRegistrationStatus,
@@ -19,6 +20,9 @@ router.get(
   "/events/:eventId/registrations",
   /* requireAuth, requireAdmin, */ getRegistrationsByEvent,
 );
+
+// NEW: admin list of all registrations (used by the admin Registrations page)
+router.get("/registrations", /* requireAuth, requireAdmin, */ listRegistrations);
 
 // "mine" must come BEFORE "/:id", or Express treats "mine" as an ID
 router.get("/registrations/mine", /* requireAuth, */ getMyRegistrations);
