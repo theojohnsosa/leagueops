@@ -1,44 +1,41 @@
 import { Router } from "express";
-import {
-  getEvents,
-  getEventById,
-  createEvent,
-  updateEvent,
-  completeEvent,
-  getDashboardStats,
-} from "../controllers/events.controller.js";
+import * as C from "../controllers/events.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 
 const router = Router();
 
 // Public event endpoints.
-router.get("/events", getEvents);
-router.get("/events/:id", getEventById);
+router.get("/events", C.getEvents);
+router.get("/events/:id", C.getEventById);
 
 // Administrative dashboard.
 router.get(
   "/dashboard/stats",
   requireAuth,
   requireRole("admin", "head"),
-  getDashboardStats,
+  C.getDashboardStats,
 );
 
-// Create and update events.
-router.post("/events", requireAuth, requireRole("admin", "head"), createEvent);
+// Event management.
+router.post(
+  "/events",
+  requireAuth,
+  requireRole("admin", "head"),
+  C.createEvent,
+);
 
 router.patch(
   "/events/:id",
   requireAuth,
   requireRole("admin", "head"),
-  updateEvent,
+  C.updateEvent,
 );
 
-// Complete approved events.
 router.patch(
   "/events/:id/complete",
   requireAuth,
   requireRole("admin", "head"),
-  completeEvent,
+  C.completeEvent,
 );
 
 export default router;

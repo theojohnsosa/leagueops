@@ -7,9 +7,7 @@ import EventLog from "../models/EventLog.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 
-const ARCHIVE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-
-const EVENT_FIELDS = [
+const F = [
   "title",
   "game",
   "type",
@@ -25,35 +23,17 @@ const EVENT_FIELDS = [
   "maxSlots",
 ];
 
-const pickEventFields = (body = {}) =>
+const pick = (body) =>
   Object.fromEntries(
-    EVENT_FIELDS.filter((field) => Object.hasOwn(body, field)).map((field) => [
-      field,
-      body[field],
-    ]),
+    F.filter((key) => Object.hasOwn(body, key)).map((key) => [key, body[key]]),
   );
 
-const validateEventId = (id) => {
+const validateId = (id) => {
   if (!mongoose.isValidObjectId(id)) {
-    throw new AppError(400, "INVALID_EVENT_ID", "Invalid event ID.");
+    throw new AppError(400, "INVALID_ID", "Invalid event ID.");
   }
 };
 
-const expireArchiveIfNeeded = async (event) => {
-  if (
-    event.isArchived &&
-    event.archivedAt &&
-    event.archiveStatus !== "expired" &&
-    Date.now() >= event.archivedAt.getTime() + ARCHIVE_RETENTION_MS
-  ) {
-    event.archiveStatus = "expired";
-    await event.save();
-  }
-
-  return event;
-};
-
-// GET /api/dashboard/stats
 export const getDashboardStats = asyncHandler(async (req, res) => {
   const [
     totalEvents,
@@ -63,21 +43,16 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     recentActivity,
     upcomingMatches,
     events,
-    registrationGroups,
+    registrationStats,
   ] = await Promise.all([
     Event.countDocuments({ isArchived: { $ne: true } }),
-
     Registration.countDocuments(),
-
     Event.countDocuments({
       status: { $in: ["upcoming", "ongoing"] },
       isArchived: { $ne: true },
     }),
-
     ApprovalRequest.countDocuments({ status: "pending" }),
-
     EventLog.find().sort({ createdAt: -1 }).limit(10).lean(),
-
     Match.find({
       status: "scheduled",
       scheduledDate: { $gte: new Date() },
@@ -91,11 +66,9 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       })
       .lean()
       .then((matches) => matches.filter((match) => match.eventId)),
-
     Event.find({ isArchived: { $ne: true } })
       .select("title game maxSlots status")
       .lean(),
-
     Registration.aggregate([
       {
         $match: {
@@ -133,13 +106,13 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     ]),
   ]);
 
-  const registrationsByEvent = new Map(
-    registrationGroups.map((group) => [String(group._id), group]),
+  const statsByEvent = new Map(
+    registrationStats.map((item) => [String(item._id), item]),
   );
 
   const eventSummaries = events.map((event) => {
-    const registration = registrationsByEvent.get(String(event._id));
-    const accepted = registration?.accepted ?? 0;
+    const stats = statsByEvent.get(String(event._id));
+    const accepted = stats?.accepted ?? 0;
 
     return {
       eventId: event._id,
@@ -147,11 +120,11 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       game: event.game,
       status: event.status,
       registration: {
-        total: registration?.total ?? 0,
-        pending: registration?.pending ?? 0,
+        total: stats?.total ?? 0,
+        pending: stats?.pending ?? 0,
         accepted,
-        rejected: registration?.rejected ?? 0,
-        cancelled: registration?.cancelled ?? 0,
+        rejected: stats?.rejected ?? 0,
+        cancelled: stats?.cancelled ?? 0,
       },
       slots:
         event.maxSlots == null
@@ -171,7 +144,6 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
   });
 
   res.json({
-    success: true,
     stats: {
       totalEvents,
       totalRegistrations,
@@ -184,14 +156,10 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
   });
 });
 
-// GET /api/events
 export const getEvents = asyncHandler(async (req, res) => {
   const filter = { isArchived: { $ne: true } };
 
-  if (req.query.status) {
-    filter.status = req.query.status;
-  }
-
+  if (req.query.status) filter.status = req.query.status;
   if (req.query.approvalStatus) {
     filter.approvalStatus = req.query.approvalStatus;
   }
@@ -205,39 +173,20 @@ export const getEvents = asyncHandler(async (req, res) => {
   });
 });
 
-// GET /api/events/archive
-export const getArchivedEvents = asyncHandler(async (req, res) => {
-  const events = await Event.find({ isArchived: true }).sort({
-    archivedAt: -1,
-  });
-
-  for (const event of events) {
-    await expireArchiveIfNeeded(event);
-  }
-
-  res.json({
-    success: true,
-    count: events.length,
-    data: events,
-  });
-});
-
-// GET /api/events/:id
 export const getEventById = asyncHandler(async (req, res) => {
-  validateEventId(req.params.id);
+  validateId(req.params.id);
 
   const event = await Event.findById(req.params.id);
 
   if (!event || event.isArchived) {
-    throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
+    throw new AppError(404, "NOT_FOUND", "Event not found.");
   }
 
   res.json({ success: true, data: event });
 });
 
-// POST /api/events
 export const createEvent = asyncHandler(async (req, res) => {
-  const fields = pickEventFields(req.body);
+  const fields = pick(req.body);
 
   if (
     typeof fields.title !== "string" ||
@@ -245,11 +194,10 @@ export const createEvent = asyncHandler(async (req, res) => {
     typeof fields.game !== "string" ||
     !fields.game.trim()
   ) {
-    throw new AppError(400, "INVALID_EVENT", "A title and game are required.");
+    throw new AppError(400, "INVALID", "A title and game are required.");
   }
 
   const session = await mongoose.startSession();
-
   let event;
   let approvalRequest;
 
@@ -287,50 +235,33 @@ export const createEvent = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    message: "Event created and submitted for approval.",
+    message: "Created.",
     data: { event, approvalRequest },
   });
 });
 
-// PATCH /api/events/:id
 export const updateEvent = asyncHandler(async (req, res) => {
-  validateEventId(req.params.id);
+  validateId(req.params.id);
 
-  const fields = pickEventFields(req.body);
+  const fields = pick(req.body);
 
   if (!Object.keys(fields).length) {
-    throw new AppError(
-      400,
-      "NO_EVENT_FIELDS",
-      "Provide at least one valid event field.",
-    );
-  }
-
-  if (
-    ("title" in fields &&
-      (typeof fields.title !== "string" || !fields.title.trim())) ||
-    ("game" in fields &&
-      (typeof fields.game !== "string" || !fields.game.trim()))
-  ) {
-    throw new AppError(400, "INVALID_EVENT", "Title and game cannot be empty.");
+    throw new AppError(400, "NO_FIELDS", "Provide fields to update.");
   }
 
   const event = await Event.findById(req.params.id);
 
   if (!event || event.isArchived) {
-    throw new AppError(404, "EVENT_NOT_FOUND", "Event not found or archived.");
+    throw new AppError(404, "NOT_FOUND", "Event not found.");
   }
 
   if (event.status === "completed") {
     throw new AppError(
-      400,
-      "EVENT_COMPLETED",
+      409,
+      "INVALID_STATE",
       "Completed events cannot be edited.",
     );
   }
-
-  if (fields.title) fields.title = fields.title.trim();
-  if (fields.game) fields.game = fields.game.trim();
 
   Object.assign(event, fields);
 
@@ -340,110 +271,32 @@ export const updateEvent = asyncHandler(async (req, res) => {
   });
 });
 
-// PATCH /api/events/:id/complete
 export const completeEvent = asyncHandler(async (req, res) => {
-  validateEventId(req.params.id);
+  validateId(req.params.id);
 
   const event = await Event.findById(req.params.id);
 
   if (!event || event.isArchived) {
-    throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
+    throw new AppError(404, "NOT_FOUND", "Event not found.");
   }
 
   if (event.approvalStatus !== "approved") {
     throw new AppError(
       400,
-      "EVENT_NOT_APPROVED",
+      "INVALID_STATE",
       "Only approved events can be completed.",
     );
   }
 
   if (event.status === "completed") {
-    throw new AppError(400, "EVENT_COMPLETED", "Event is already completed.");
+    throw new AppError(409, "INVALID_STATE", "Event is already completed.");
   }
 
   event.status = "completed";
 
   res.json({
     success: true,
-    message: "Event marked as completed.",
-    data: await event.save(),
-  });
-});
-
-// PATCH /api/events/:id/archive
-export const archiveEvent = asyncHandler(async (req, res) => {
-  validateEventId(req.params.id);
-
-  const event = await Event.findById(req.params.id);
-
-  if (!event || event.isArchived) {
-    throw new AppError(404, "EVENT_NOT_FOUND", "Event not found.");
-  }
-
-  if (event.status === "completed") {
-    throw new AppError(
-      400,
-      "EVENT_COMPLETED",
-      "Completed events cannot be archived.",
-    );
-  }
-
-  if (event.approvalStatus !== "pending") {
-    throw new AppError(
-      400,
-      "EVENT_NOT_PENDING",
-      "Only events pending approval can be archived.",
-    );
-  }
-
-  event.isArchived = true;
-  event.archiveStatus = "archived";
-  event.archivedAt = new Date();
-  event.archivedBy = req.user._id;
-  event.archiveReason =
-    typeof req.body.reason === "string" ? req.body.reason.trim() : "";
-  event.restoredAt = undefined;
-  event.restoredBy = undefined;
-
-  res.json({
-    success: true,
-    message: "Event archived.",
-    data: await event.save(),
-  });
-});
-
-// PATCH /api/events/:id/restore
-export const restoreEvent = asyncHandler(async (req, res) => {
-  validateEventId(req.params.id);
-
-  const event = await Event.findById(req.params.id);
-
-  if (!event || !event.isArchived) {
-    throw new AppError(404, "EVENT_NOT_FOUND", "Archived event not found.");
-  }
-
-  await expireArchiveIfNeeded(event);
-
-  if (event.archiveStatus === "expired") {
-    throw new AppError(
-      410,
-      "ARCHIVE_EXPIRED",
-      "The seven-day restoration period has expired.",
-    );
-  }
-
-  event.isArchived = false;
-  event.archiveStatus = "active";
-  event.archivedAt = undefined;
-  event.archivedBy = undefined;
-  event.archiveReason = undefined;
-  event.restoredAt = new Date();
-  event.restoredBy = req.user._id;
-
-  res.json({
-    success: true,
-    message: "Event restored.",
+    message: "Completed.",
     data: await event.save(),
   });
 });

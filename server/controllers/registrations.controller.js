@@ -169,10 +169,28 @@ export async function getRegistrationsByEvent(req, res) {
     return res.json(registrations);
   } catch (err) {
     console.error("getRegistrationsByEvent error:", err);
+    return res.status(500).json({ message: "Server error." }); // FIXED: was missing
+  } // FIXED: was missing
+}
 
-    return res.status(500).json({
-      message: "Server error.",
-    });
+// ---------- GET /api/registrations ----------
+// Admin list of ALL registrations, with each event's title, game and mode filled in.
+export async function listRegistrations(req, res) {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ message: "Admin access required." });
+    }
+
+    const registrations = await Registration.find()
+      .populate("eventId", "title game registrationMode")
+      .sort({ createdAt: -1 })
+      .limit(1000)
+      .lean();
+
+    return res.json(registrations);
+  } catch (err) {
+    console.error("listRegistrations error:", err);
+    return res.status(500).json({ message: "Server error." });
   }
 }
 
@@ -197,8 +215,7 @@ export async function getRegistrationById(req, res) {
     const userId = currentUserId(req);
 
     const isOwner =
-      userId &&
-      String(registration.submittedBy) === String(userId);
+      userId && String(registration.submittedBy) === String(userId);
 
     if (!isOwner && !isAdmin(req)) {
       return res.status(403).json({
@@ -232,6 +249,8 @@ export async function getRegistrationById(req, res) {
   }
 }
 
+// Kept the newer version from main (hides archived events).
+// The older duplicate of this function was deleted.
 export async function getMyRegistrations(req, res) {
   try {
     const userId = currentUserId(req);
@@ -279,6 +298,11 @@ export async function getMyRegistrations(req, res) {
 
 export async function updateRegistrationStatus(req, res) {
   try {
+    // Only admins can accept, reject or reopen a registration.
+    if (!isAdmin(req)) {
+      return res.status(403).json({ message: "Admin access required." });
+    }
+
     const { id } = req.params;
     const { status, rejectionReason } = req.body;
 
@@ -307,15 +331,15 @@ export async function updateRegistrationStatus(req, res) {
     if (status === "accepted") {
       const event = await Event.findById(registration.eventId).lean();
 
-    if (!event) {
-      return res.status(404).json({ message: "Event not found." });
-    }
+      if (!event) {
+        return res.status(404).json({ message: "Event not found." });
+      }
 
-    if (event.isArchived) {
-      return res.status(403).json({
-        message: "Cannot review registrations for an archived event.",
-      });
-    }
+      if (event.isArchived) {
+        return res.status(403).json({
+          message: "Cannot review registrations for an archived event.",
+        });
+      }
 
       const acceptedOthers = await Registration.find({
         eventId: registration.eventId,
@@ -369,8 +393,7 @@ export async function cancelRegistration(req, res) {
     const userId = currentUserId(req);
 
     const isOwner =
-      userId &&
-      String(registration.submittedBy) === String(userId);
+      userId && String(registration.submittedBy) === String(userId);
 
     if (!isOwner && !isAdmin(req)) {
       return res.status(403).json({

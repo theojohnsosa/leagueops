@@ -15,8 +15,7 @@ import approvalRoutes from "./routes/approvals.routes.js";
 import archiveRoutes from "./routes/archive.routes.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
-const currentFile = fileURLToPath(import.meta.url);
-const currentDirectory = path.dirname(currentFile);
+const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 dotenv.config({
   path: path.join(currentDirectory, ".env"),
