@@ -1,4 +1,3 @@
-import dns from "node:dns";
 import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
@@ -10,11 +9,10 @@ import cookieParser from "cookie-parser";
 import registrationRoutes from "./routes/registrations.routes.js";
 import matchRoutes from "./routes/matches.routes.js";
 import announcementRoutes from "./routes/announcements.routes.js";
-import { notFound, errorHandler } from "./middleware/errorHandler.js";
-
 import authRoutes from "./routes/auth.routes.js";
-
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
+import eventRoutes from "./routes/events.routes.js";
+import approvalRoutes from "./routes/approvals.routes.js";
+import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -31,6 +29,7 @@ app.use(
     credentials: true,
   }),
 );
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -43,15 +42,15 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// API routes must come before the 404 handler.
+// Register each API route once.
 app.use("/api", registrationRoutes);
 app.use("/api", matchRoutes);
 app.use("/api", announcementRoutes);
-
-// Authentication and API routes must come before the 404 handler.
-app.use("/api", registrationRoutes);
-app.use("/api", matchRoutes);
 app.use("/api", authRoutes);
+app.use("/api", eventRoutes);
+app.use("/api", approvalRoutes);
+
+// Error handlers must come after all API routes.
 app.use(notFound);
 app.use(errorHandler);
 

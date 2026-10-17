@@ -1,8 +1,14 @@
 import mongoose from "mongoose";
 
 export const APPROVAL_STATUSES = ["pending", "approved", "rejected"];
-// ASSUMPTION: event lifecycle values. Adjust to match your docs.
-export const STATUSES = ["draft", "upcoming", "ongoing", "completed", "cancelled"];
+export const STATUSES = [
+  "draft",
+  "upcoming",
+  "ongoing",
+  "completed",
+  "cancelled",
+];
+export const ARCHIVE_STATUSES = ["active", "archived", "expired"];
 
 const eventSchema = new mongoose.Schema(
   {
@@ -19,23 +25,44 @@ const eventSchema = new mongoose.Schema(
     registrationMode: { type: String, trim: true },
     playersPerTeam: { type: Number, min: 1 },
     maxSlots: { type: Number, min: 1 },
-    status: { type: String, enum: STATUSES, default: "draft", index: true },
-    approvalStatus: { type: String, enum: APPROVAL_STATUSES, default: "pending", index: true },
+
+    status: {
+      type: String,
+      enum: STATUSES,
+      default: "draft",
+      index: true,
+    },
+    approvalStatus: {
+      type: String,
+      enum: APPROVAL_STATUSES,
+      default: "pending",
+      index: true,
+    },
+
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     reviewedAt: { type: Date },
     reviewNote: { type: String, trim: true },
+
     isSchedulePublished: { type: Boolean, default: false },
     isBracketPublished: { type: Boolean, default: false },
     standings: { type: mongoose.Schema.Types.Mixed, default: {} },
+
     isArchived: { type: Boolean, default: false, index: true },
+    archiveStatus: {
+      type: String,
+      enum: ARCHIVE_STATUSES,
+      default: "active",
+      index: true,
+    },
     archivedAt: { type: Date },
     archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     archiveReason: { type: String, trim: true },
     restoredAt: { type: Date },
     restoredBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
-  { timestamps: true, minimize: false }
+  { timestamps: true, minimize: false },
 );
 
 export default mongoose.model("Event", eventSchema);
