@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-import dns from "node:dns";
 import express from "express";
 import mongoose from "mongoose";
 import path from "node:path";
@@ -10,8 +9,6 @@ import cookieParser from "cookie-parser";
 import registrationRoutes from "./routes/registrations.routes.js";
 import matchRoutes from "./routes/matches.routes.js";
 import archiveRoutes from "./routes/archive.routes.js";
-// Node's own DNS lookup is being refused on this network, so use public DNS.
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
 import announcementRoutes from "./routes/announcements.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import eventRoutes from "./routes/events.routes.js";
@@ -36,13 +33,6 @@ app.use(
 
 app.use(express.json());
 app.use(cookieParser());
-
-if (process.env.DEV_FAKE_ADMIN === "true") {
-  app.use((req, res, next) => {
-    req.user = { _id: "64b000000000000000000001", role: "admin" };
-    next();
-  });
-}
 
 app.get("/api/health", (req, res) => {
   res.json({
@@ -79,3 +69,4 @@ mongoose
     console.error("MongoDB connection failed:", err.message);
     process.exit(1);
   });
+
