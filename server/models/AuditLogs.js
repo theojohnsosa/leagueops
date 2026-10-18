@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+import appendOnly from "../utils/appendOnly.js";
+
 // Append-only: createdAt only, no updatedAt. The appendOnly plugin
 // (utils) will block updates and deletes.
 const auditLogSchema = new mongoose.Schema(
@@ -12,9 +14,11 @@ const auditLogSchema = new mongoose.Schema(
     targetId: { type: mongoose.Schema.Types.ObjectId },
     description: { type: String },
   },
-  { timestamps: { createdAt: true, updatedAt: false } }
+  { timestamps: { createdAt: true, updatedAt: false } },
 );
 
 auditLogSchema.index({ createdAt: -1 });
+
+appendOnly(auditLogSchema);
 
 export default mongoose.model("AuditLog", auditLogSchema);
