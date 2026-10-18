@@ -23,7 +23,7 @@ const EVENT_FIELDS = [
   "maxSlots",
 ];
 
-function pickEventFields(body) {
+function pickEventFields(body = {}) {
   return Object.fromEntries(
     EVENT_FIELDS.filter((field) => Object.hasOwn(body, field)).map((field) => [
       field,
@@ -202,6 +202,7 @@ export const createEvent = asyncHandler(async (req, res) => {
   }
 
   const session = await mongoose.startSession();
+
   let event;
   let approvalRequest;
 
