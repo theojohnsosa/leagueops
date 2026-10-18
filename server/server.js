@@ -1,3 +1,4 @@
+import dns from "node:dns";
 import dotenv from "dotenv";
 import express from "express";
 import mongoose from "mongoose";
@@ -12,9 +13,11 @@ import archiveRoutes from "./routes/archive.routes.js";
 import announcementRoutes from "./routes/announcements.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import approvalRoutes from "./routes/approvals.routes.js";
-import { notFound, errorHandler } from "./middleware/errorHandler.js";
 import eventRoutes from "./routes/events.routes.js";
 import userRoutes from "./routes/users.routes.js";
+
+import { notFound, errorHandler } from "./middleware/errorHandler.js";
+import { expireArchivedEvents } from "./utils/expireArchivedEvents.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -44,7 +47,7 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Register each API route once.
+// Register API routes.
 app.use("/api", registrationRoutes);
 app.use("/api", matchRoutes);
 app.use("/api", archiveRoutes);
@@ -66,11 +69,34 @@ if (!MONGO_URI) {
   process.exit(1);
 }
 
+const EXPIRATION_INTERVAL_MS = 60 * 1000;
+
+const runExpirationJob = async () => {
+  try {
+    const count = await expireArchivedEvents();
+
+    if (count > 0) {
+      console.log(`Expired ${count} archived event(s).`);
+    }
+  } catch (error) {
+    console.error("Archive expiration job failed:", error);
+  }
+};
+
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
+
 mongoose
   .connect(MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log("MongoDB Atlas connected");
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+    // Run once immediately, then check every minute.
+    await runExpirationJob();
+    setInterval(runExpirationJob, EXPIRATION_INTERVAL_MS);
+
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
   })
   .catch((err) => {
     console.error("MongoDB connection failed:", err.message);
