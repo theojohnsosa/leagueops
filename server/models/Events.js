@@ -1,29 +1,57 @@
 import mongoose from "mongoose";
 
 export const APPROVAL_STATUSES = ["pending", "approved", "rejected"];
-export const STATUSES = [
-  "draft",
-  "upcoming",
-  "ongoing",
-  "completed",
-  "cancelled",
-];
+export const STATUSES = ["draft", "published", "ongoing", "completed"];
 export const ARCHIVE_STATUSES = ["active", "archived", "expired"];
+
+const standingsSchema = new mongoose.Schema(
+  {
+    champion: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Registration",
+      default: null,
+    },
+    firstRunnerUp: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Registration",
+      default: null,
+    },
+    secondRunnerUp: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Registration",
+      default: null,
+    },
+  },
+  { _id: false },
+);
 
 const eventSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
-    game: { type: String, required: true, trim: true },
-    type: { type: String, trim: true },
+    game: {
+      type: String,
+      required: true,
+      enum: ["CODM", "MLBB", "Valorant", "Tekken 8", "League of Legends"],
+    },
+    type: {
+      type: String,
+      enum: ["tournament", "tryout", "campus_event"],
+    },
     season: { type: String, trim: true },
     description: { type: String, trim: true },
     venue: { type: String, trim: true },
-    eventStartDate: { type: Date },
-    eventEndDate: { type: Date },
-    registrationOpenDate: { type: Date },
-    registrationClosedDate: { type: Date },
-    registrationMode: { type: String, trim: true },
+
+    eventStartDate: { type: Date, required: true },
+    eventEndDate: { type: Date, required: true },
+    registrationOpenDate: { type: Date, required: true },
+    registrationCloseDate: { type: Date, required: true },
+
+    registrationMode: {
+      type: String,
+      enum: ["team", "individual"],
+    },
     playersPerTeam: { type: Number, min: 1 },
+    maxSubstitutes: { type: Number, min: 0, default: 0 },
     maxSlots: { type: Number, min: 1 },
 
     status: {
@@ -45,7 +73,7 @@ const eventSchema = new mongoose.Schema(
 
     isSchedulePublished: { type: Boolean, default: false },
     isBracketPublished: { type: Boolean, default: false },
-    standings: { type: mongoose.Schema.Types.Mixed, default: {} },
+    standings: { type: standingsSchema, default: () => ({}) },
 
     isArchived: { type: Boolean, default: false, index: true },
     archiveStatus: {
@@ -60,9 +88,15 @@ const eventSchema = new mongoose.Schema(
     restoredAt: { type: Date },
     restoredBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
   { timestamps: true, minimize: false },
 );
+
+eventSchema.index({ season: 1, title: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model("Event", eventSchema);
