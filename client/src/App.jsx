@@ -1,57 +1,55 @@
-import { useEffect, useState } from "react";
-import { Route, Routes } from "react-router-dom";
-import axios from "axios";
-import Header from "./components/Header.jsx";
-import Registrations from "./pages/admin/registrations.jsx";
+import { Routes, Route, Navigate } from "react-router-dom";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
-function Home() {
-  const [health, setHealth] = useState(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    axios
-      .get(`${import.meta.env.VITE_API_URL}/health`)
-      .then((res) => setHealth(res.data))
-      .catch((err) => setError(err.message));
-  }, []);
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="rounded-xl border-t-8 border-[#0038a8] shadow-lg p-8 w-96">
-        <h1 className="text-2xl font-bold text-[#0038a8]">LeagueOps</h1>
-        <p className="text-sm text-gray-600 mb-4">
-          Event Registration and Management System
-        </p>
-        {error && <p className="text-[#ce1126]">API error: {error}</p>}
-        {health && (
-          <p className="text-green-700">
-            API: {health.status} | Database: {health.database}
-          </p>
-        )}
-        {!health && !error && <p className="text-gray-500">Checking API...</p>}
-      </div>
-    </div>
-  );
-}
-
-// Shown for header links whose pages are not built yet.
-function NotBuilt() {
-  return (
-    <>
-      <Header />
-      <main className="mx-auto max-w-3xl p-10 text-center text-gray-500">
-        This page has not been built yet.
-      </main>
-    </>
-  );
-}
+import Login from "./pages/Login.jsx";
+import Signup from "./pages/Signup.jsx";
+import VerifyEmail from "./pages/VerifyEmail.jsx";
+import ForgotPassword from "./pages/ForgotPassword.jsx";
+import ResetPassword from "./pages/ResetPassword.jsx";
+import Dashboard from "./pages/Dashboard.jsx";
+import Events from "./pages/Events.jsx";
+import EventDetails from "./pages/EventDetails.jsx";
+import Registrations from "./pages/Registrations.jsx";
+import Matches from "./pages/Matches.jsx";
+import Announcements from "./pages/Announcements.jsx";
+import Users from "./pages/Users.jsx";
+import Approvals from "./pages/Approvals.jsx";
+import Archive from "./pages/Archive.jsx";
+import Logs from "./pages/Logs.jsx";
+import NotFound from "./pages/NotFound.jsx";
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/admin/registrations" element={<Registrations />} />
-      <Route path="*" element={<NotBuilt />} />
+      {/* Public: anyone can open these */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/verify-email/:token" element={<VerifyEmail />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+      {/* Any logged-in user */}
+      <Route element={<ProtectedRoute />}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/events" element={<Events />} />
+        <Route path="/events/:id" element={<EventDetails />} />
+        <Route path="/registrations" element={<Registrations />} />
+        <Route path="/matches" element={<Matches />} />
+        <Route path="/announcements" element={<Announcements />} />
+      </Route>
+
+      {/* Role-restricted. Confirm the exact roles with Theo and CONTRIBUTING.md */}
+      <Route element={<ProtectedRoute roles={["admin"]} />}>
+        <Route path="/users" element={<Users />} />
+        <Route path="/logs" element={<Logs />} />
+      </Route>
+      <Route element={<ProtectedRoute roles={["admin", "head"]} />}>
+        <Route path="/approvals" element={<Approvals />} />
+        <Route path="/archive" element={<Archive />} />
+      </Route>
+
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

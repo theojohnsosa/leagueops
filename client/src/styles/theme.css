@@ -1,0 +1,18 @@
+/* One place for every color. Components use var(--name), never raw hex codes. */
+:root {
+  --color-primary: #0038a8; /* blue */
+  --color-accent: #ce1126; /* red */
+  --color-highlight: #fcd116; /* yellow */
+  --color-bg: #ffffff;
+  --color-surface: #f5f6fa;
+  --color-text: #1a1a1a;
+  --color-muted: #6b7280;
+  --radius: 8px;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
