@@ -340,6 +340,21 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   });
 
   if (!verification) {
+    const previouslyUsed = await EmailVerification.findOne({
+      tokenHash,
+      usedAt: { $exists: true },
+    });
+
+    if (previouslyUsed) {
+      const user = await User.findById(previouslyUsed.userId);
+
+      if (user?.isEmailVerified) {
+        return res.json({
+          message: "Email verified successfully. You can now log in.",
+        });
+      }
+    }
+
     throw new AppError(
       400,
       "TOKEN_INVALID",

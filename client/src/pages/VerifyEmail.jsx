@@ -10,6 +10,7 @@ export default function VerifyEmail() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     async function verify() {
       if (!token) {
@@ -19,7 +20,11 @@ export default function VerifyEmail() {
       }
 
       try {
-        const { data } = await api.post("/auth/verify-email", { token });
+        const { data } = await api.post(
+          "/auth/verify-email",
+          { token },
+          { signal: controller.signal },
+        );
 
         if (cancelled) return;
 
@@ -28,12 +33,12 @@ export default function VerifyEmail() {
           data.message || "Your email address has been verified successfully.",
         );
       } catch (error) {
-        if (cancelled) return;
+        if (cancelled || error.code === "ERR_CANCELED") return;
 
         setStatus("error");
         setMessage(
           error.response?.data?.message ||
-            "Verification failed. The link may have expired or already been used.",
+            "Verification failed. Please check your connection and try again.",
         );
       }
     }
@@ -42,6 +47,7 @@ export default function VerifyEmail() {
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [token]);
 
@@ -49,8 +55,8 @@ export default function VerifyEmail() {
     <main className="auth-page">
       <section className="auth-card">
         <div className="auth-brand">LeagueOps</div>
-
         <p className="auth-eyebrow">EMAIL VERIFICATION</p>
+
         <h1>
           {status === "loading"
             ? "Verifying Email"
