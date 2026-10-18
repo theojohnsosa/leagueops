@@ -1,0 +1,35 @@
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.auth-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.auth-form__link {
+  align-self: flex-end;
+  font-size: 0.7rem;
+  color: var(--color-blue-600);
+  text-decoration: none;
+  margin-top: -8px;
+}
+.auth-form__link:hover {
+  text-decoration: underline;
+}
+.auth-form__submit {
+  margin-top: 6px;
+}
+.auth-form__error {
+  font-size: 0.75rem;
+  color: var(--color-error);
+  margin: 0;
+  text-align: left;
+}
+
+@media (max-width: 520px) {
+  .auth-form__row {
+    grid-template-columns: 1fr;
+  }
+}
