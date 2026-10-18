@@ -11,7 +11,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 
 const router = Router();
 
-// Dashboard statistics.
+// Dashboard statistics: administrative access only.
 router.get(
   "/dashboard/stats",
   requireAuth,
@@ -19,11 +19,11 @@ router.get(
   getDashboardStats,
 );
 
-// Public event viewing.
+// Public event listings.
 router.get("/events", getEvents);
 router.get("/events/:id", getEventById);
 
-// Event management.
+// Event creation and management.
 router.post("/events", requireAuth, requireRole("admin", "head"), createEvent);
 
 router.patch(

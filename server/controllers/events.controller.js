@@ -86,16 +86,24 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
           _id: "$eventId",
           total: { $sum: 1 },
           pending: {
-            $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$status", "pending"] }, 1, 0],
+            },
           },
           accepted: {
-            $sum: { $cond: [{ $eq: ["$status", "accepted"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$status", "accepted"] }, 1, 0],
+            },
           },
           rejected: {
-            $sum: { $cond: [{ $eq: ["$status", "rejected"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$status", "rejected"] }, 1, 0],
+            },
           },
           cancelled: {
-            $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0],
+            },
           },
         },
       },
@@ -262,7 +270,10 @@ export const updateEvent = asyncHandler(async (req, res) => {
 
   Object.assign(event, fields);
 
-  res.json({ success: true, data: await event.save() });
+  res.json({
+    success: true,
+    data: await event.save(),
+  });
 });
 
 export const completeEvent = asyncHandler(async (req, res) => {
