@@ -131,16 +131,36 @@ export async function getRegistrationsByEvent(req, res) {
     const { status } = req.query;
 
     if (!isValidId(eventId)) {
-      return res.status(400).json({ message: "Invalid event ID." });
+      return res.status(400).json({
+        message: "Invalid event ID.",
+      });
     }
+
     if (status && !STATUSES.includes(status)) {
       return res.status(400).json({
         message: `Status must be one of: ${STATUSES.join(", ")}.`,
       });
     }
 
+    const event = await Event.findById(eventId).select("isArchived").lean();
+
+    if (!event) {
+      return res.status(404).json({
+        message: "Event not found.",
+      });
+    }
+
+    if (event.isArchived) {
+      return res.status(404).json({
+        message: "Event not found.",
+      });
+    }
+
     const filter = { eventId };
-    if (status) filter.status = status;
+
+    if (status) {
+      filter.status = status;
+    }
 
     const registrations = await Registration.find(filter)
       .sort({ createdAt: -1 })
@@ -149,25 +169,27 @@ export async function getRegistrationsByEvent(req, res) {
     return res.json(registrations);
   } catch (err) {
     console.error("getRegistrationsByEvent error:", err);
-    return res.status(500).json({ message: "Server error." });
-  }
+    return res.status(500).json({ message: "Server error." }); // FIXED: was missing
+  } // FIXED: was missing
 }
 
-export async function getMyRegistrations(req, res) {
+// ---------- GET /api/registrations ----------
+// Admin list of ALL registrations, with each event's title, game and mode filled in.
+export async function listRegistrations(req, res) {
   try {
-    const userId = currentUserId(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Login required." });
+    if (!isAdmin(req)) {
+      return res.status(403).json({ message: "Admin access required." });
     }
 
-    const registrations = await Registration.find({ submittedBy: userId })
-      .populate("eventId", "title game eventStartDate status")
+    const registrations = await Registration.find()
+      .populate("eventId", "title game registrationMode")
       .sort({ createdAt: -1 })
+      .limit(1000)
       .lean();
 
     return res.json(registrations);
   } catch (err) {
-    console.error("getMyRegistrations error:", err);
+    console.error("listRegistrations error:", err);
     return res.status(500).json({ message: "Server error." });
   }
 }
@@ -175,30 +197,112 @@ export async function getMyRegistrations(req, res) {
 export async function getRegistrationById(req, res) {
   try {
     const { id } = req.params;
+
     if (!isValidId(id)) {
-      return res.status(400).json({ message: "Invalid registration ID." });
+      return res.status(400).json({
+        message: "Invalid registration ID.",
+      });
     }
 
     const registration = await Registration.findById(id).lean();
+
     if (!registration) {
-      return res.status(404).json({ message: "Registration not found." });
+      return res.status(404).json({
+        message: "Registration not found.",
+      });
     }
+
+    const userId = currentUserId(req);
 
     const isOwner =
-      String(registration.submittedBy) === String(currentUserId(req));
+      userId && String(registration.submittedBy) === String(userId);
+
     if (!isOwner && !isAdmin(req)) {
-      return res.status(403).json({ message: "Not allowed." });
+      return res.status(403).json({
+        message: "Not allowed.",
+      });
     }
 
-    return res.json(registration);
+    const event = await Event.findById(registration.eventId)
+      .select("title game eventStartDate status isArchived")
+      .lean();
+
+    if (event?.isArchived) {
+      return res.json({
+        ...registration,
+        eventId: null,
+        eventArchived: true,
+      });
+    }
+
+    return res.json({
+      ...registration,
+      eventId: event ?? registration.eventId,
+      eventArchived: false,
+    });
   } catch (err) {
     console.error("getRegistrationById error:", err);
-    return res.status(500).json({ message: "Server error." });
+
+    return res.status(500).json({
+      message: "Server error.",
+    });
+  }
+}
+
+// Kept the newer version from main (hides archived events).
+// The older duplicate of this function was deleted.
+export async function getMyRegistrations(req, res) {
+  try {
+    const userId = currentUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        message: "Login required.",
+      });
+    }
+
+    const registrations = await Registration.find({
+      submittedBy: userId,
+    })
+      .populate({
+        path: "eventId",
+        select: "title game eventStartDate status isArchived",
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const visibleRegistrations = registrations.map((registration) => {
+      if (registration.eventId?.isArchived) {
+        return {
+          ...registration,
+          eventId: null,
+          eventArchived: true,
+        };
+      }
+
+      return {
+        ...registration,
+        eventArchived: false,
+      };
+    });
+
+    return res.json(visibleRegistrations);
+  } catch (err) {
+    console.error("getMyRegistrations error:", err);
+
+    return res.status(500).json({
+      message: "Server error.",
+    });
   }
 }
 
 export async function updateRegistrationStatus(req, res) {
   try {
+    // Only admins can accept, reject or reopen a registration.
+    if (!isAdmin(req)) {
+      return res.status(403).json({ message: "Admin access required." });
+    }
+
     const { id } = req.params;
     const { status, rejectionReason } = req.body;
 
@@ -226,8 +330,15 @@ export async function updateRegistrationStatus(req, res) {
 
     if (status === "accepted") {
       const event = await Event.findById(registration.eventId).lean();
+
       if (!event) {
         return res.status(404).json({ message: "Event not found." });
+      }
+
+      if (event.isArchived) {
+        return res.status(403).json({
+          message: "Cannot review registrations for an archived event.",
+        });
       }
 
       const acceptedOthers = await Registration.find({
@@ -264,31 +375,50 @@ export async function updateRegistrationStatus(req, res) {
 export async function cancelRegistration(req, res) {
   try {
     const { id } = req.params;
+
     if (!isValidId(id)) {
-      return res.status(400).json({ message: "Invalid registration ID." });
+      return res.status(400).json({
+        message: "Invalid registration ID.",
+      });
     }
 
     const registration = await Registration.findById(id);
+
     if (!registration) {
-      return res.status(404).json({ message: "Registration not found." });
+      return res.status(404).json({
+        message: "Registration not found.",
+      });
     }
 
+    const userId = currentUserId(req);
+
     const isOwner =
-      String(registration.submittedBy) === String(currentUserId(req));
+      userId && String(registration.submittedBy) === String(userId);
+
     if (!isOwner && !isAdmin(req)) {
-      return res.status(403).json({ message: "Not allowed." });
+      return res.status(403).json({
+        message: "Not allowed.",
+      });
     }
+
     if (registration.status === "cancelled") {
       return res.json(registration);
     }
 
     registration.status = "cancelled";
     registration.cancelledAt = new Date();
+
     await registration.save();
 
-    return res.json(registration);
+    return res.json({
+      message: "Registration cancelled successfully.",
+      registration,
+    });
   } catch (err) {
     console.error("cancelRegistration error:", err);
-    return res.status(500).json({ message: "Server error." });
+
+    return res.status(500).json({
+      message: "Server error.",
+    });
   }
 }
