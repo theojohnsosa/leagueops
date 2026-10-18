@@ -60,15 +60,22 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
   next();
 });
 
-export const requireRole =
-  (...roles) =>
-  (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({
-        code: "FORBIDDEN",
-        message: "You do not have permission to perform this action.",
-      });
+export const requireRole = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return next(new AppError(401, "NOT_LOGGED_IN", "Please log in."));
     }
 
-    next();
+    if (!allowedRoles.includes(req.user.role)) {
+      return next(
+        new AppError(
+          403,
+          "FORBIDDEN",
+          "You do not have permission to perform this action.",
+        ),
+      );
+    }
+
+    return next();
   };
+};

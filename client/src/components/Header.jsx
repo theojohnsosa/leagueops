@@ -63,7 +63,7 @@ export default function Header() {
         <img
           src="/primary.png"
           alt=""
-          className="h-15 w-auto"
+          className="h-12 w-auto"
           onError={(e) => {
             e.currentTarget.style.display = "none";
           }}
@@ -73,7 +73,7 @@ export default function Header() {
       {/* The nav scrolls sideways on small screens instead of breaking the layout. */}
       <nav
         aria-label="Main"
-        className="flex flex-1 items-center justify-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex flex-1 items-center justify-center gap-0.5 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden"
       >
         {/* NEW: public links only render when showPublicLinks is true */}
         {showPublicLinks &&
