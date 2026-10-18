@@ -1,3 +1,4 @@
+import { Routes, Route } from "react-router-dom";
  import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import Schedule from "./pages/admin/schedule.jsx";
@@ -20,10 +21,18 @@ import Approvals from "./pages/Approvals.jsx";
 import Archive from "./pages/Archive.jsx";
 import Logs from "./pages/Logs.jsx";
 import NotFound from "./pages/NotFound.jsx";
+import Landing from "./pages/public/Landing.jsx";
 
 export default function App() {
   return (
     <Routes>
+      {/* Public: anyone can open these */}
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/verify-email/:token" element={<VerifyEmail />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password/:token" element={<ResetPassword />} />
 {/* Public: anyone can open these */}
 <Route path="/login" element={<Login />} />
 <Route path="/signup" element={<Signup />} />
@@ -42,6 +51,16 @@ export default function App() {
   <Route path="/bracket" element={<Bracket />} />
 </Route>
 
+      {/* Role-restricted. Confirm the exact roles with Theo and CONTRIBUTING.md */}
+      <Route element={<ProtectedRoute roles={["admin"]} />}>
+        <Route path="/users" element={<Users />} />
+        <Route path="/logs" element={<Logs />} />
+      </Route>
+      <Route element={<ProtectedRoute roles={["admin", "head"]} />}>
+        <Route path="/approvals" element={<Approvals />} />
+        <Route path="/archive" element={<Archive />} />
+      </Route>
+      <Route path="*" element={<NotFound />} />
 {/* Role-restricted. Confirm the exact roles with Theo and CONTRIBUTING.md */}
 <Route element={<ProtectedRoute roles={["admin"]} />}>
   <Route path="/users" element={<Users />} />

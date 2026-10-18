@@ -16,6 +16,12 @@
   font-weight: 700;
   font-display: swap;
 }
+@font-face {
+  font-family: "Tanker";
+  src: url("./assets/fonts/Tanker-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
 :root {
   --color-navy-900: #020b1f;
   --color-blue-600: #2358d6;
@@ -25,8 +31,10 @@
   --color-text: #0a0a0a;
   --color-muted: #9a9ea8;
   --color-error: #d92d20;
+  --color-yellow-500: #e0b713;
 
   --font-main: "Pilcrow Rounded", system-ui, sans-serif;
+  --font-display: "Tanker", "Pilcrow Rounded", system-ui, sans-serif;
   --radius-card: 10px;
   --radius-field: 6px;
 }
