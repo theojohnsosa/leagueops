@@ -1,12 +1,53 @@
-@import "tailwindcss";
-
+@font-face {
+  font-family: "Pilcrow Rounded";
+  src: url("./assets/fonts/PilcrowRounded-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Pilcrow Rounded";
+  src: url("./assets/fonts/PilcrowRounded-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Pilcrow Rounded";
+  src: url("./assets/fonts/PilcrowRounded-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Tanker";
+  src: url("./assets/fonts/Tanker-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
 :root {
-  --color-flag-blue: #0038a8;
-  --color-flag-red: #ce1126;
-  --color-flag-yellow: #fcd116;
+  --color-navy-900: #020b1f;
+  --color-blue-600: #2358d6;
+  --color-bg: #ffffff;
+  --color-card-border: #e2e4e9;
+  --color-input-bg: #f4f5f7;
+  --color-text: #0a0a0a;
+  --color-muted: #9a9ea8;
+  --color-error: #d92d20;
+  --color-yellow-500: #e0b713;
+
+  --font-main: "Pilcrow Rounded", system-ui, sans-serif;
+  --font-display: "Tanker", "Pilcrow Rounded", system-ui, sans-serif;
+  --radius-card: 10px;
+  --radius-field: 6px;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-main);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }

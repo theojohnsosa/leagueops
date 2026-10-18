@@ -21,23 +21,31 @@ const VERIFICATION_HOURS = 24;
 const RESET_HOURS = 1;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 
-const GENERIC_VERIFICATION_MESSAGE =
-  "If this email needs confirmation, a new link was sent.";
-
-const GENERIC_RESET_MESSAGE =
-  "If this email is registered, a reset link was sent.";
+const VERIFICATION_MESSAGE =
+  "If an eligible account needs verification, a verification email will be sent.";
+const RESET_MESSAGE =
+  "If an account matches that email, a password reset link will be sent.";
 
 function splitFullName(fullName) {
-  const parts = fullName.trim().split(/\s+/);
+  const parts = String(fullName || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!parts.length) {
+    return { firstName: "", lastName: "" };
+  }
 
   return {
-    firstName: parts.shift() || "",
-    lastName: parts.join(" "),
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
   };
 }
 
 function normalizeEmail(email) {
-  return typeof email === "string" ? email.trim().toLowerCase() : "";
+  return String(email || "")
+    .trim()
+    .toLowerCase();
 }
 
 function publicUser(user) {
@@ -47,192 +55,246 @@ function publicUser(user) {
     lastName: user.lastName,
     studentEmail: user.studentEmail,
     studentId: user.studentId,
-    department: user.department || "",
-    inGameName: user.inGameName || "",
+    department: user.department,
+    inGameName: user.inGameName,
     role: user.role,
     isActive: user.isActive,
     isEmailVerified: user.isEmailVerified,
   };
 }
 
-function validationError(fields) {
-  return new AppError(
-    400,
-    "VALIDATION_ERROR",
-    "Please check the submitted fields.",
-    fields,
-  );
+function validationError(message, fields = {}) {
+  return new AppError(400, "VALIDATION_ERROR", message, fields);
 }
 
 function validateStudentEmail(email) {
-  const parts = email.split("@");
+  const suffix = `@${EMAIL_DOMAIN}`;
 
-  return (
-    parts.length === 2 &&
-    parts[0].length > 0 &&
-    parts[1] === EMAIL_DOMAIN &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  );
+  if (!email || !email.includes("@")) {
+    throw validationError("Enter a valid student email.", {
+      studentEmail: "Enter a valid student email.",
+    });
+  }
+
+  if (!email.endsWith(suffix)) {
+    throw validationError(
+      `Use your university email address ending in ${suffix}.`,
+      {
+        studentEmail: `Email must end in ${suffix}.`,
+      },
+    );
+  }
+}
+
+function makeExpiry(hours) {
+  return new Date(Date.now() + hours * 60 * 60 * 1000);
+}
+
+function buildClientUrl(path) {
+  const base = process.env.CLIENT_URL?.trim();
+
+  if (!base) {
+    throw new Error("CLIENT_URL is not configured.");
+  }
+
+  return `${base.replace(/\/+$/, "")}${path}`;
 }
 
 async function createVerification(user) {
   const token = generateToken();
+  const tokenHash = hashToken(token);
+  const verificationUrl = buildClientUrl(
+    `/verify-email/${encodeURIComponent(token)}`,
+  );
 
-  await EmailVerification.deleteMany({
+  const verification = await EmailVerification.create({
     userId: user._id,
-    usedAt: null,
+    tokenHash,
+    expiresAt: makeExpiry(VERIFICATION_HOURS),
   });
 
-  await EmailVerification.create({
-    userId: user._id,
-    tokenHash: hashToken(token),
-    expiresAt: new Date(Date.now() + VERIFICATION_HOURS * 60 * 60 * 1000),
-  });
+  try {
+    await sendAuthEmail({
+      to: user.studentEmail,
+      subject: "Verify your LeagueOps account",
+      text: [
+        `Hello ${user.firstName},`,
+        "",
+        "Verify your LeagueOps account using this link:",
+        verificationUrl,
+        "",
+        `This link expires in ${VERIFICATION_HOURS} hours.`,
+        "If you did not request this, you can ignore this email.",
+      ].join("\n"),
+      html: `
+        <p>Hello ${user.firstName},</p>
+        <p>Verify your LeagueOps account using the link below:</p>
+        <p><a href="${verificationUrl}">Verify my account</a></p>
+        <p>This link expires in ${VERIFICATION_HOURS} hours.</p>
+        <p>If you did not request this, you can ignore this email.</p>
+      `,
+    });
+  } catch (error) {
+    await EmailVerification.deleteOne({ _id: verification._id }).catch(
+      (cleanupError) => {
+        console.error(
+          "Failed to clean up an unsent verification token:",
+          cleanupError.message,
+        );
+      },
+    );
 
-  const clientUrl = process.env.CLIENT_URL;
-
-  if (!clientUrl) {
-    throw new Error("CLIENT_URL is not configured.");
+    throw error;
   }
 
-  const link = `${clientUrl.replace(/\/+$/, "")}/verify-email/${token}`;
-
-  await sendAuthEmail({
-    to: user.studentEmail,
-    subject: "Confirm your LeagueOps account",
-    text: `Confirm your LeagueOps account using this link:\n${link}\n\nThis link expires in 24 hours.`,
-    html: `<p>Confirm your LeagueOps account:</p><p><a href="${link}">Verify email</a></p><p>This link expires in 24 hours.</p>`,
+  // Preserve the previous token until the replacement email has been sent.
+  await EmailVerification.deleteMany({
+    userId: user._id,
+    _id: { $ne: verification._id },
   });
+
+  return verification;
 }
 
 async function createPasswordReset(user) {
   const token = generateToken();
-  const clientUrl = process.env.CLIENT_URL;
+  const tokenHash = hashToken(token);
+  const resetUrl = buildClientUrl(
+    `/reset-password/${encodeURIComponent(token)}`,
+  );
 
-  if (!clientUrl) {
-    throw new Error("CLIENT_URL is not configured.");
+  const reset = await PasswordReset.create({
+    userId: user._id,
+    tokenHash,
+    expiresAt: makeExpiry(RESET_HOURS),
+  });
+
+  try {
+    await sendAuthEmail({
+      to: user.studentEmail,
+      subject: "Reset your LeagueOps password",
+      text: [
+        `Hello ${user.firstName},`,
+        "",
+        "Use this link to reset your LeagueOps password:",
+        resetUrl,
+        "",
+        `This link expires in ${RESET_HOURS} hour.`,
+        "If you did not request this, you can ignore this email.",
+      ].join("\n"),
+      html: `
+        <p>Hello ${user.firstName},</p>
+        <p>Use the link below to reset your LeagueOps password:</p>
+        <p><a href="${resetUrl}">Reset my password</a></p>
+        <p>This link expires in ${RESET_HOURS} hour.</p>
+        <p>If you did not request this, you can ignore this email.</p>
+      `,
+    });
+  } catch (error) {
+    await PasswordReset.deleteOne({ _id: reset._id }).catch((cleanupError) => {
+      console.error(
+        "Failed to clean up an unsent password-reset token:",
+        cleanupError.message,
+      );
+    });
+
+    throw error;
   }
 
-  // Invalidate outstanding reset links before issuing a replacement.
+  // Only invalidate earlier reset links after the new email is sent.
   await PasswordReset.updateMany(
-    { userId: user._id, usedAt: null },
+    {
+      userId: user._id,
+      _id: { $ne: reset._id },
+      usedAt: { $exists: false },
+    },
     { $set: { usedAt: new Date() } },
   );
 
-  await PasswordReset.create({
-    userId: user._id,
-    tokenHash: hashToken(token),
-    expiresAt: new Date(Date.now() + RESET_HOURS * 60 * 60 * 1000),
-  });
-
-  const link = `${clientUrl.replace(/\/+$/, "")}/reset-password/${token}`;
-
-  await sendAuthEmail({
-    to: user.studentEmail,
-    subject: "Reset your LeagueOps password",
-    text: `Reset your LeagueOps password using this link:\n${link}\n\nThis link expires in one hour.`,
-    html: `<p>Reset your LeagueOps password:</p><p><a href="${link}">Reset password</a></p><p>This link expires in one hour.</p>`,
-  });
+  return reset;
 }
 
-// POST /api/auth/signup
 export const signup = asyncHandler(async (req, res) => {
-  const { fullName, email, studentId, department, inGameName, password } =
-    req.body ?? {};
+  const { fullName, email, studentId, password, department, inGameName } =
+    req.body || {};
 
-  const fields = {};
+  const studentEmail = normalizeEmail(email);
+  const normalizedStudentId = String(studentId || "").trim();
+  const normalizedFullName = String(fullName || "").trim();
 
-  if (typeof fullName !== "string" || !fullName.trim()) {
-    fields.fullName = "Full name is required.";
-  }
-
-  if (typeof email !== "string" || !email.trim()) {
-    fields.email = "Email is required.";
-  }
-
-  if (typeof studentId !== "string" || !studentId.trim()) {
-    fields.studentId = "Student ID is required.";
-  }
-
-  if (typeof password !== "string" || password.length < 8) {
-    fields.password = "Password must be at least 8 characters.";
-  }
-
-  if (department !== undefined && typeof department !== "string") {
-    fields.department = "Department must be text.";
-  }
-
-  if (inGameName !== undefined && typeof inGameName !== "string") {
-    fields.inGameName = "In-game name must be text.";
-  }
-
-  if (Object.keys(fields).length) {
-    throw validationError(fields);
-  }
-
-  const normalizedEmail = normalizeEmail(email);
-
-  if (!validateStudentEmail(normalizedEmail)) {
-    throw new AppError(
-      400,
-      "INVALID_EMAIL_DOMAIN",
-      `Use your @${EMAIL_DOMAIN} email address.`,
-      { email: `A valid @${EMAIL_DOMAIN} email is required.` },
-    );
-  }
-
-  const { firstName, lastName } = splitFullName(fullName);
-
-  if (!firstName || !lastName) {
-    throw validationError({
-      fullName: "Enter both your first and last name.",
+  if (!normalizedFullName) {
+    throw validationError("Full name is required.", {
+      fullName: "Full name is required.",
     });
   }
 
-  const normalizedStudentId = studentId.trim();
+  if (!studentEmail) {
+    throw validationError("Student email is required.", {
+      studentEmail: "Student email is required.",
+    });
+  }
 
-  const existingEmail = await User.findOne({
-    studentEmail: normalizedEmail,
-  });
+  validateStudentEmail(studentEmail);
 
-  const existingStudentId = await User.findOne({
+  if (!normalizedStudentId) {
+    throw validationError("Student ID is required.", {
+      studentId: "Student ID is required.",
+    });
+  }
+
+  if (typeof password !== "string" || password.length < 8) {
+    throw validationError("Password must be at least 8 characters.", {
+      password: "Password must be at least 8 characters.",
+    });
+  }
+
+  const { firstName, lastName } = splitFullName(normalizedFullName);
+
+  const existingByEmail = await User.findOne({ studentEmail });
+  const existingByStudentId = await User.findOne({
     studentId: normalizedStudentId,
   });
 
-  if (existingEmail?.isEmailVerified) {
-    throw new AppError(409, "EMAIL_TAKEN", "This email is already registered.");
+  if (existingByEmail?.isEmailVerified) {
+    throw new AppError(
+      409,
+      "EMAIL_TAKEN",
+      "An account with this email already exists.",
+    );
   }
 
   if (
-    existingStudentId &&
-    String(existingStudentId._id) !== String(existingEmail?._id)
+    existingByStudentId &&
+    String(existingByStudentId._id) !== String(existingByEmail?._id)
   ) {
     throw new AppError(
       409,
       "STUDENT_ID_TAKEN",
-      "This student ID is already registered.",
+      "An account with this student ID already exists.",
     );
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
   let user;
 
-  if (existingEmail && !existingEmail.isEmailVerified) {
-    existingEmail.firstName = firstName;
-    existingEmail.lastName = lastName;
-    existingEmail.studentId = normalizedStudentId;
-    existingEmail.department = department?.trim() || "";
-    existingEmail.inGameName = inGameName?.trim() || "";
-    existingEmail.passwordHash = passwordHash;
-    existingEmail.role = "player";
-    existingEmail.isActive = true;
+  if (existingByEmail) {
+    // Reuse an unverified account so a user can correct or retry signup.
+    existingByEmail.firstName = firstName;
+    existingByEmail.lastName = lastName;
+    existingByEmail.studentId = normalizedStudentId;
+    existingByEmail.department = department?.trim() || "";
+    existingByEmail.inGameName = inGameName?.trim() || "";
+    existingByEmail.passwordHash = passwordHash;
+    existingByEmail.role = "player";
+    existingByEmail.isActive = true;
+    existingByEmail.isEmailVerified = false;
 
-    user = await existingEmail.save();
+    user = await existingByEmail.save();
   } else {
     user = await User.create({
       firstName,
       lastName,
-      studentEmail: normalizedEmail,
+      studentEmail,
       studentId: normalizedStudentId,
       department: department?.trim() || "",
       inGameName: inGameName?.trim() || "",
@@ -246,132 +308,144 @@ export const signup = asyncHandler(async (req, res) => {
   try {
     await createVerification(user);
   } catch (error) {
-    console.error("Failed to send verification email:", error.message);
+    console.error("Signup verification email failed:", error.message);
 
     throw new AppError(
       503,
       "EMAIL_SEND_FAILED",
-      "Your account was saved, but the verification email could not be sent. Try resending it.",
+      "Your account was saved, but the verification email could not be sent. Please try resending the verification email.",
     );
   }
 
-  res.status(201).json({
-    message: "Check your email to confirm your account.",
-    email: user.studentEmail,
+  return res.status(201).json({
+    message:
+      "Account created. Check your university email to verify your account.",
+    user: publicUser(user),
   });
 });
 
-// POST /api/auth/verify-email
 export const verifyEmail = asyncHandler(async (req, res) => {
-  const { token } = req.body ?? {};
+  const token = String(req.body?.token || "").trim();
 
-  if (typeof token !== "string" || !token.trim()) {
-    throw new AppError(
-      400,
-      "TOKEN_INVALID",
-      "The verification link is invalid.",
-    );
+  if (!token) {
+    throw validationError("Verification token is required.", {
+      token: "Verification token is required.",
+    });
   }
 
   const tokenHash = hashToken(token);
-
-  // Look up first so expired links can return TOKEN_EXPIRED.
-  const existing = await EmailVerification.findOne({
+  const verification = await EmailVerification.findOne({
     tokenHash,
-    usedAt: null,
+    usedAt: { $exists: false },
   });
 
-  if (!existing) {
+  if (!verification) {
     throw new AppError(
       400,
       "TOKEN_INVALID",
-      "The verification link is invalid.",
+      "This verification link is invalid or has already been used.",
     );
   }
 
-  if (existing.expiresAt <= new Date()) {
+  if (verification.expiresAt.getTime() <= Date.now()) {
     throw new AppError(
       400,
       "TOKEN_EXPIRED",
-      "The verification link has expired.",
+      "This verification link has expired. Request a new one.",
     );
   }
 
-  // Claim the token once, preventing concurrent reuse.
-  const verification = await EmailVerification.findOneAndUpdate(
+  // Claim the token atomically so concurrent requests cannot both use it.
+  const claimed = await EmailVerification.findOneAndUpdate(
     {
-      _id: existing._id,
-      usedAt: null,
+      _id: verification._id,
+      usedAt: { $exists: false },
       expiresAt: { $gt: new Date() },
     },
     { $set: { usedAt: new Date() } },
     { new: true },
   );
 
-  if (!verification) {
+  if (!claimed) {
     throw new AppError(
       400,
       "TOKEN_INVALID",
-      "The verification link is invalid or has already been used.",
+      "This verification link is invalid, expired, or has already been used.",
     );
   }
 
-  const user = await User.findById(verification.userId);
+  try {
+    const user = await User.findById(verification.userId);
 
-  if (!user) {
-    throw new AppError(
-      400,
-      "TOKEN_INVALID",
-      "The verification link is invalid.",
-    );
+    if (!user) {
+      throw new AppError(
+        404,
+        "USER_NOT_FOUND",
+        "The account associated with this link no longer exists.",
+      );
+    }
+
+    if (!user.isEmailVerified) {
+      user.isEmailVerified = true;
+      await user.save();
+    }
+
+    await EmailVerification.deleteMany({
+      userId: user._id,
+      _id: { $ne: verification._id },
+    });
+
+    return res.json({
+      message: "Email verified successfully. You can now log in.",
+    });
+  } catch (error) {
+    // Allow retry if the database update failed after claiming the token.
+    await EmailVerification.updateOne(
+      { _id: verification._id, usedAt: claimed.usedAt },
+      { $unset: { usedAt: "" } },
+    ).catch((rollbackError) => {
+      console.error(
+        "Failed to release verification token after an error:",
+        rollbackError.message,
+      );
+    });
+
+    throw error;
   }
-
-  user.isEmailVerified = true;
-  await user.save();
-
-  await EmailVerification.deleteMany({
-    userId: user._id,
-    _id: { $ne: verification._id },
-  });
-
-  res.json({
-    message: "Email confirmed. You can now log in.",
-  });
 });
 
-// POST /api/auth/resend-verification
 export const resendVerification = asyncHandler(async (req, res) => {
-  const email = normalizeEmail(req.body?.email);
+  const studentEmail = normalizeEmail(req.body?.email);
 
-  if (!email) {
-    return res.json({ message: GENERIC_VERIFICATION_MESSAGE });
+  if (!studentEmail) {
+    return res.json({ message: VERIFICATION_MESSAGE });
   }
 
-  const user = await User.findOne({
-    studentEmail: email,
-    isEmailVerified: false,
-  });
+  const user = await User.findOne({ studentEmail });
 
-  if (!user) {
-    return res.json({ message: GENERIC_VERIFICATION_MESSAGE });
+  if (!user || user.isEmailVerified || !user.isActive) {
+    return res.json({ message: VERIFICATION_MESSAGE });
   }
 
-  const latest = await EmailVerification.findOne({
+  const latestVerification = await EmailVerification.findOne({
     userId: user._id,
   }).sort({ createdAt: -1 });
 
-  if (latest && Date.now() - latest.createdAt.getTime() < RESEND_COOLDOWN_MS) {
+  if (
+    latestVerification &&
+    Date.now() - latestVerification.createdAt.getTime() < RESEND_COOLDOWN_MS
+  ) {
     throw new AppError(
       429,
-      "TOO_MANY_REQUESTS",
-      "Please wait 60 seconds before requesting another verification link.",
+      "RESEND_COOLDOWN",
+      "Please wait before requesting another verification email.",
     );
   }
 
   try {
     await createVerification(user);
   } catch (error) {
-    console.error("Failed to resend verification email:", error.message);
+    console.error("Resending verification email failed:", error.message);
 
     throw new AppError(
       503,
@@ -380,37 +454,28 @@ export const resendVerification = asyncHandler(async (req, res) => {
     );
   }
 
-  res.json({ message: GENERIC_VERIFICATION_MESSAGE });
+  return res.json({ message: VERIFICATION_MESSAGE });
 });
 
-// POST /api/auth/login
 export const login = asyncHandler(async (req, res) => {
-  const email = normalizeEmail(req.body?.email);
-  const password = req.body?.password;
+  const studentEmail = normalizeEmail(
+    req.body?.studentEmail || req.body?.email,
+  );
+  const { password } = req.body || {};
 
-  const fields = {};
-
-  if (!email) {
-    fields.email = "Email is required.";
+  if (!studentEmail || typeof password !== "string" || !password) {
+    throw validationError("Email and password are required.", {
+      email: "Email and password are required.",
+    });
   }
 
-  if (typeof password !== "string" || !password) {
-    fields.password = "Password is required.";
-  }
-
-  if (Object.keys(fields).length) {
-    throw validationError(fields);
-  }
-
-  const user = await User.findOne({
-    studentEmail: email,
-  }).select("+passwordHash");
+  const user = await User.findOne({ studentEmail }).select("+passwordHash");
 
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     throw new AppError(
       401,
       "INVALID_CREDENTIALS",
-      "Email or password is incorrect.",
+      "Invalid email or password.",
     );
   }
 
@@ -422,7 +487,7 @@ export const login = asyncHandler(async (req, res) => {
     );
   }
 
-  if (!user.isEmailVerified) {
+  if (!user.isEmailVerified && process.env.SKIP_EMAIL_VERIFICATION !== "true") {
     throw new AppError(
       403,
       "EMAIL_NOT_VERIFIED",
@@ -432,191 +497,185 @@ export const login = asyncHandler(async (req, res) => {
 
   setAuthCookie(res, user._id);
 
-  res.json({
-    user: publicUser(user),
-  });
+  return res.json({ user: publicUser(user) });
 });
 
-// POST /api/auth/logout
 export const logout = asyncHandler(async (req, res) => {
   clearAuthCookie(res);
 
-  res.json({ message: "Logged out." });
+  return res.json({ message: "Logged out successfully." });
 });
 
-// GET /api/auth/me
 export const getMe = asyncHandler(async (req, res) => {
-  res.json({
-    user: publicUser(req.user),
-  });
+  return res.json({ user: publicUser(req.user) });
 });
 
-// PATCH /api/auth/me
 export const updateMe = asyncHandler(async (req, res) => {
-  const { fullName, department, inGameName } = req.body ?? {};
-  const fields = {};
+  const { fullName, department, inGameName } = req.body || {};
+  const updates = {};
 
   if (fullName !== undefined) {
     if (typeof fullName !== "string" || !fullName.trim()) {
-      fields.fullName = "Enter your first and last name.";
-    } else {
-      const { firstName, lastName } = splitFullName(fullName);
-
-      if (!firstName || !lastName) {
-        fields.fullName = "Enter your first and last name.";
-      } else {
-        req.user.firstName = firstName;
-        req.user.lastName = lastName;
-      }
+      throw validationError("Full name cannot be empty.", {
+        fullName: "Full name cannot be empty.",
+      });
     }
+
+    Object.assign(updates, splitFullName(fullName));
   }
 
   if (department !== undefined) {
     if (typeof department !== "string") {
-      fields.department = "Department must be text.";
-    } else {
-      req.user.department = department.trim();
+      throw validationError("Department must be text.", {
+        department: "Department must be text.",
+      });
     }
+
+    updates.department = department.trim();
   }
 
   if (inGameName !== undefined) {
     if (typeof inGameName !== "string") {
-      fields.inGameName = "In-game name must be text.";
-    } else {
-      req.user.inGameName = inGameName.trim();
+      throw validationError("In-game name must be text.", {
+        inGameName: "In-game name must be text.",
+      });
     }
+
+    updates.inGameName = inGameName.trim();
   }
 
-  if (Object.keys(fields).length) {
-    throw validationError(fields);
+  if (!Object.keys(updates).length) {
+    throw validationError("Provide at least one field to update.");
   }
 
-  if (
-    fullName === undefined &&
-    department === undefined &&
-    inGameName === undefined
-  ) {
-    throw validationError({
-      body: "Provide at least one profile field to update.",
-    });
-  }
-
+  Object.assign(req.user, updates);
   await req.user.save();
 
-  res.json({
+  return res.json({
+    message: "Profile updated successfully.",
     user: publicUser(req.user),
   });
 });
 
-// POST /api/auth/forgot-password
 export const forgotPassword = asyncHandler(async (req, res) => {
-  const email = normalizeEmail(req.body?.email);
+  const studentEmail = normalizeEmail(req.body?.email);
 
-  if (!email) {
-    return res.json({ message: GENERIC_RESET_MESSAGE });
+  if (!studentEmail) {
+    return res.json({ message: RESET_MESSAGE });
   }
 
-  const user = await User.findOne({
-    studentEmail: email,
-    isActive: true,
-    isEmailVerified: true,
-  });
+  try {
+    const user = await User.findOne({
+      studentEmail,
+      isActive: true,
+      isEmailVerified: true,
+    });
 
-  if (user) {
-    try {
+    if (user) {
       await createPasswordReset(user);
-    } catch (error) {
-      // Do not reveal account existence or mail delivery status to the caller.
-      console.error("Failed to send password reset email:", error.message);
     }
+  } catch (error) {
+    // Do not reveal whether an account exists or whether email delivery failed.
+    console.error("Password-reset request failed:", error.message);
   }
 
-  res.json({ message: GENERIC_RESET_MESSAGE });
+  return res.json({ message: RESET_MESSAGE });
 });
 
-// POST /api/auth/reset-password
 export const resetPassword = asyncHandler(async (req, res) => {
-  const { token, password } = req.body ?? {};
+  const token = String(req.body?.token || "").trim();
+  const { password } = req.body || {};
+
+  if (!token) {
+    throw validationError("Password reset token is required.", {
+      token: "Password reset token is required.",
+    });
+  }
 
   if (typeof password !== "string" || password.length < 8) {
-    throw validationError({
+    throw validationError("Password must be at least 8 characters.", {
       password: "Password must be at least 8 characters.",
     });
   }
 
-  if (typeof token !== "string" || !token.trim()) {
-    throw new AppError(
-      400,
-      "TOKEN_INVALID",
-      "The password reset link is invalid.",
-    );
-  }
-
   const tokenHash = hashToken(token);
-
-  const existing = await PasswordReset.findOne({
+  const reset = await PasswordReset.findOne({
     tokenHash,
-    usedAt: null,
+    usedAt: { $exists: false },
   });
 
-  if (!existing) {
+  if (!reset) {
     throw new AppError(
       400,
       "TOKEN_INVALID",
-      "The password reset link is invalid.",
+      "This password reset link is invalid or has already been used.",
     );
   }
 
-  if (existing.expiresAt <= new Date()) {
+  if (reset.expiresAt.getTime() <= Date.now()) {
     throw new AppError(
       400,
       "TOKEN_EXPIRED",
-      "The password reset link has expired.",
+      "This password reset link has expired. Request a new one.",
     );
   }
 
-  // Claim the token so two concurrent requests cannot both use it.
-  const reset = await PasswordReset.findOneAndUpdate(
+  const claimed = await PasswordReset.findOneAndUpdate(
     {
-      _id: existing._id,
-      usedAt: null,
+      _id: reset._id,
+      usedAt: { $exists: false },
       expiresAt: { $gt: new Date() },
     },
     { $set: { usedAt: new Date() } },
     { new: true },
   );
 
-  if (!reset) {
+  if (!claimed) {
     throw new AppError(
       400,
       "TOKEN_INVALID",
-      "The password reset link is invalid or has already been used.",
+      "This password reset link is invalid, expired, or has already been used.",
     );
   }
 
-  const user = await User.findById(reset.userId);
+  try {
+    const user = await User.findById(reset.userId).select("+passwordHash");
 
-  if (!user) {
-    throw new AppError(
-      400,
-      "TOKEN_INVALID",
-      "The password reset link is invalid.",
+    if (!user) {
+      throw new AppError(
+        404,
+        "USER_NOT_FOUND",
+        "The account associated with this link no longer exists.",
+      );
+    }
+
+    user.passwordHash = await bcrypt.hash(password, 12);
+    await user.save();
+
+    await PasswordReset.updateMany(
+      {
+        userId: user._id,
+        _id: { $ne: reset._id },
+        usedAt: { $exists: false },
+      },
+      { $set: { usedAt: new Date() } },
     );
+
+    return res.json({
+      message: "Password reset successfully. You can now log in.",
+    });
+  } catch (error) {
+    // If updating the user fails, release this token so the user can retry.
+    await PasswordReset.updateOne(
+      { _id: reset._id, usedAt: claimed.usedAt },
+      { $unset: { usedAt: "" } },
+    ).catch((rollbackError) => {
+      console.error(
+        "Failed to release password-reset token after an error:",
+        rollbackError.message,
+      );
+    });
+
+    throw error;
   }
-
-  user.passwordHash = await bcrypt.hash(password, 12);
-  await user.save();
-
-  await PasswordReset.updateMany(
-    {
-      userId: user._id,
-      _id: { $ne: reset._id },
-      usedAt: null,
-    },
-    { $set: { usedAt: new Date() } },
-  );
-
-  res.json({
-    message: "Password updated. You can now log in.",
-  });
 });

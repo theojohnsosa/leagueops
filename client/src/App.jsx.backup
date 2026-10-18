@@ -1,0 +1,45 @@
+﻿
+import { Route, Routes } from "react-router-dom";
+import Landing from "./pages/public/Landing.jsx";
+import Login from "./pages/Login.jsx";
+import Dashboard from "./pages/Dashboard.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import Registrations from "./pages/admin/registrations.jsx";
+import ScheduleManager from "./pages/admin/schedule.jsx";
+import EventSchedule from "./pages/admin/eventSchedule.jsx";
+
+function NotBuilt() {
+  return (
+    <main style={{ padding: "40px", textAlign: "center" }}>
+      <h1>LeagueOps</h1>
+      <p>This page has not been built yet.</p>
+    </main>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+
+      <Route element={<ProtectedRoute />}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route
+          path="/admin/registrations"
+          element={<Registrations />}
+        />
+        <Route
+          path="/admin/schedule"
+          element={<ScheduleManager />}
+        />
+        <Route
+          path="/admin/schedule/:eventId"
+          element={<EventSchedule />}
+        />
+      </Route>
+
+      <Route path="*" element={<NotBuilt />} />
+    </Routes>
+  );
+}

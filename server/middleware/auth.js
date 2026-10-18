@@ -20,6 +20,23 @@ function readToken(req) {
 }
 
 export const requireAuth = asyncHandler(async (req, res, next) => {
+  // Fake admin for local development only.
+  // Never allow fake authentication in production.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.DEV_FAKE_ADMIN === "true"
+  ) {
+    req.user = {
+      _id: "dev-admin",
+      role: "admin",
+      isActive: true,
+      isEmailVerified: true,
+    };
+
+    return next();
+  }
+
+  // Normal token authentication.
   const token = readToken(req);
 
   if (!token) {
@@ -57,7 +74,7 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
   }
 
   req.user = user;
-  next();
+  return next();
 });
 
 export const requireRole =
@@ -70,5 +87,5 @@ export const requireRole =
       });
     }
 
-    next();
+    return next();
   };

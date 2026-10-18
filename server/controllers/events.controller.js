@@ -6,6 +6,8 @@ import Match from "../models/Matches.js";
 import EventLog from "../models/EventLog.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import { logAudit, logEvent } from "../utils/logger.js";
+import { publicEventFilter } from "../utils/visibility.js";
 
 const EVENT_FIELDS = [
   "title",
@@ -23,7 +25,7 @@ const EVENT_FIELDS = [
   "maxSlots",
 ];
 
-function pickEventFields(body) {
+function pickEventFields(body = {}) {
   return Object.fromEntries(
     EVENT_FIELDS.filter((field) => Object.hasOwn(body, field)).map((field) => [
       field,
@@ -36,6 +38,10 @@ function validateEventId(id) {
   if (!mongoose.isValidObjectId(id)) {
     throw new AppError(400, "INVALID_ID", "Invalid event ID.");
   }
+}
+
+function actorId(user) {
+  return user?._id;
 }
 
 export const getDashboardStats = asyncHandler(async (req, res) => {
@@ -86,24 +92,16 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
           _id: "$eventId",
           total: { $sum: 1 },
           pending: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "pending"] }, 1, 0],
-            },
+            $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] },
           },
           accepted: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "accepted"] }, 1, 0],
-            },
+            $sum: { $cond: [{ $eq: ["$status", "accepted"] }, 1, 0] },
           },
           rejected: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "rejected"] }, 1, 0],
-            },
+            $sum: { $cond: [{ $eq: ["$status", "rejected"] }, 1, 0] },
           },
           cancelled: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0],
-            },
+            $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] },
           },
         },
       },
@@ -160,15 +158,15 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
   });
 });
 
+// Public listing: approved events only; archived and expired events excluded.
 export const getEvents = asyncHandler(async (req, res) => {
-  const filter = { isArchived: { $ne: true } };
+  const filter = publicEventFilter();
 
-  if (req.query.status) filter.status = req.query.status;
-  if (req.query.approvalStatus) {
-    filter.approvalStatus = req.query.approvalStatus;
+  if (req.query.status) {
+    filter.status = req.query.status;
   }
 
-  const events = await Event.find(filter).sort({ createdAt: -1 });
+  const events = await Event.find(filter).sort({ createdAt: -1 }).lean();
 
   res.json({
     success: true,
@@ -177,12 +175,16 @@ export const getEvents = asyncHandler(async (req, res) => {
   });
 });
 
+// Public detail: do not reveal draft, pending, rejected, archived, or expired events.
 export const getEventById = asyncHandler(async (req, res) => {
   validateEventId(req.params.id);
 
-  const event = await Event.findById(req.params.id);
+  const event = await Event.findOne({
+    _id: req.params.id,
+    ...publicEventFilter(),
+  }).lean();
 
-  if (!event || event.isArchived) {
+  if (!event) {
     throw new AppError(404, "NOT_FOUND", "Event not found.");
   }
 
@@ -202,12 +204,11 @@ export const createEvent = asyncHandler(async (req, res) => {
   }
 
   const session = await mongoose.startSession();
-  let event;
-  let approvalRequest;
+  let result;
 
   try {
     await session.withTransaction(async () => {
-      [event] = await Event.create(
+      const [event] = await Event.create(
         [
           {
             ...fields,
@@ -215,23 +216,46 @@ export const createEvent = asyncHandler(async (req, res) => {
             game: fields.game.trim(),
             status: "draft",
             approvalStatus: "pending",
-            createdBy: req.user._id,
+            createdBy: actorId(req.user),
           },
         ],
         { session },
       );
 
-      [approvalRequest] = await ApprovalRequest.create(
+      const [approvalRequest] = await ApprovalRequest.create(
         [
           {
             type: "event",
             targetId: event._id,
-            requestedBy: req.user._id,
+            requestedBy: actorId(req.user),
             status: "pending",
           },
         ],
         { session },
       );
+
+      await logAudit({
+        actor: req.user,
+        action: "EVENT_CREATED",
+        targetType: "Event",
+        targetId: event._id,
+        description: `Created event "${event.title}" and submitted it for approval.`,
+        session,
+      });
+
+      await logEvent({
+        eventId: event._id,
+        actor: req.user,
+        action: "EVENT_CREATED",
+        description: "Event created and submitted for approval.",
+        changes: {
+          status: "draft",
+          approvalStatus: "pending",
+        },
+        session,
+      });
+
+      result = { event, approvalRequest };
     });
   } finally {
     await session.endSession();
@@ -239,8 +263,8 @@ export const createEvent = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    message: "Created.",
-    data: { event, approvalRequest },
+    message: "Event created and submitted for approval.",
+    data: result,
   });
 });
 
@@ -253,54 +277,175 @@ export const updateEvent = asyncHandler(async (req, res) => {
     throw new AppError(400, "NO_FIELDS", "Provide fields to update.");
   }
 
-  const event = await Event.findById(req.params.id);
-
-  if (!event || event.isArchived) {
-    throw new AppError(404, "NOT_FOUND", "Event not found.");
+  if (
+    ("title" in fields &&
+      (typeof fields.title !== "string" || !fields.title.trim())) ||
+    ("game" in fields &&
+      (typeof fields.game !== "string" || !fields.game.trim()))
+  ) {
+    throw new AppError(400, "INVALID", "Title and game cannot be empty.");
   }
 
-  if (event.status === "completed") {
+  if (
+    ("playersPerTeam" in fields &&
+      (!Number.isInteger(Number(fields.playersPerTeam)) ||
+        Number(fields.playersPerTeam) < 1)) ||
+    ("maxSlots" in fields &&
+      fields.maxSlots != null &&
+      (!Number.isInteger(Number(fields.maxSlots)) ||
+        Number(fields.maxSlots) < 1))
+  ) {
     throw new AppError(
-      409,
-      "INVALID_STATE",
-      "Completed events cannot be edited.",
+      400,
+      "INVALID_CAPACITY",
+      "Team size and slot capacity must be positive whole numbers.",
     );
   }
 
-  Object.assign(event, fields);
+  for (const field of [
+    "eventStartDate",
+    "eventEndDate",
+    "registrationOpenDate",
+    "registrationClosedDate",
+  ]) {
+    if (field in fields && fields[field] != null) {
+      const date = new Date(fields[field]);
 
-  res.json({
-    success: true,
-    data: await event.save(),
-  });
+      if (Number.isNaN(date.getTime())) {
+        throw new AppError(
+          400,
+          "INVALID_DATE",
+          `${field} is not a valid date.`,
+        );
+      }
+
+      fields[field] = date;
+    }
+  }
+
+  if ("title" in fields) fields.title = fields.title.trim();
+  if ("game" in fields) fields.game = fields.game.trim();
+
+  const session = await mongoose.startSession();
+  let updatedEvent;
+
+  try {
+    await session.withTransaction(async () => {
+      const event = await Event.findById(req.params.id).session(session);
+
+      if (!event || event.isArchived || event.archiveStatus !== "active") {
+        throw new AppError(404, "NOT_FOUND", "Event not found.");
+      }
+
+      if (event.status === "completed" || event.status === "cancelled") {
+        throw new AppError(
+          409,
+          "INVALID_STATE",
+          "Completed or cancelled events cannot be edited.",
+        );
+      }
+
+      const before = Object.fromEntries(
+        Object.keys(fields).map((field) => [field, event.get(field)]),
+      );
+
+      Object.assign(event, fields);
+      await event.save({ session });
+
+      await logAudit({
+        actor: req.user,
+        action: "EVENT_UPDATED",
+        targetType: "Event",
+        targetId: event._id,
+        description: `Updated event "${event.title}".`,
+        session,
+      });
+
+      await logEvent({
+        eventId: event._id,
+        actor: req.user,
+        action: "EVENT_UPDATED",
+        description: "Event details updated.",
+        changes: { before, after: fields },
+        session,
+      });
+
+      updatedEvent = event;
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  res.json({ success: true, data: updatedEvent });
 });
 
 export const completeEvent = asyncHandler(async (req, res) => {
   validateEventId(req.params.id);
 
-  const event = await Event.findById(req.params.id);
+  const session = await mongoose.startSession();
+  let completedEvent;
 
-  if (!event || event.isArchived) {
-    throw new AppError(404, "NOT_FOUND", "Event not found.");
+  try {
+    await session.withTransaction(async () => {
+      const event = await Event.findById(req.params.id).session(session);
+
+      if (!event || event.isArchived || event.archiveStatus !== "active") {
+        throw new AppError(404, "NOT_FOUND", "Event not found.");
+      }
+
+      if (event.approvalStatus !== "approved") {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Only approved events can be completed.",
+        );
+      }
+
+      if (event.status === "completed") {
+        throw new AppError(409, "INVALID_STATE", "Event is already completed.");
+      }
+
+      if (event.status === "cancelled") {
+        throw new AppError(
+          409,
+          "INVALID_STATE",
+          "Cancelled events cannot be completed.",
+        );
+      }
+
+      const previousStatus = event.status;
+      event.status = "completed";
+      await event.save({ session });
+
+      await logAudit({
+        actor: req.user,
+        action: "EVENT_COMPLETED",
+        targetType: "Event",
+        targetId: event._id,
+        description: `Marked event "${event.title}" as completed.`,
+        session,
+      });
+
+      await logEvent({
+        eventId: event._id,
+        actor: req.user,
+        action: "EVENT_COMPLETED",
+        description: "Event marked as completed.",
+        changes: {
+          status: { before: previousStatus, after: "completed" },
+        },
+        session,
+      });
+
+      completedEvent = event;
+    });
+  } finally {
+    await session.endSession();
   }
-
-  if (event.approvalStatus !== "approved") {
-    throw new AppError(
-      400,
-      "INVALID_STATE",
-      "Only approved events can be completed.",
-    );
-  }
-
-  if (event.status === "completed") {
-    throw new AppError(409, "INVALID_STATE", "Event is already completed.");
-  }
-
-  event.status = "completed";
 
   res.json({
     success: true,
-    message: "Completed.",
-    data: await event.save(),
+    message: "Event completed.",
+    data: completedEvent,
   });
 });

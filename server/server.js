@@ -5,7 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-
+import dns from "node:dns";
+import { startArchiveExpirationJob } from "./jobs/archiveExpiration.job.js";
 import registrationRoutes from "./routes/registrations.routes.js";
 import matchRoutes from "./routes/matches.routes.js";
 import archiveRoutes from "./routes/archive.routes.js";
@@ -14,7 +15,8 @@ import authRoutes from "./routes/auth.routes.js";
 import eventRoutes from "./routes/events.routes.js";
 import approvalRoutes from "./routes/approvals.routes.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
-
+import eventLogsRoutes from "./routes/eventLogs.routes.js";
+import auditLogsRoutes from "./routes/auditLogs.routes.js";
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
 
@@ -24,9 +26,18 @@ dotenv.config({
 
 const app = express();
 
+if (process.env.DNS_SERVERS) {
+  dns.setServers(process.env.DNS_SERVERS.split(",").map((s) => s.trim()));
+}
+
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin: [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://localhost:5175",
+      "http://127.0.0.1:5175",
+    ],
     credentials: true,
   }),
 );
@@ -43,11 +54,11 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Register each API route once.
 app.use("/api", registrationRoutes);
 app.use("/api", matchRoutes);
 app.use("/api", archiveRoutes);
-// ---------- Start ----------
+app.use("/api", eventLogsRoutes);
+app.use("/api", auditLogsRoutes);
 app.use("/api", announcementRoutes);
 app.use("/api", authRoutes);
 app.use("/api", eventRoutes);
@@ -63,10 +74,14 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("MongoDB Atlas connected");
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+    startArchiveExpirationJob();
+
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
   })
   .catch((err) => {
     console.error("MongoDB connection failed:", err.message);
     process.exit(1);
   });
-
