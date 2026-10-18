@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 import Login from "./pages/Login.jsx";
@@ -17,11 +17,13 @@ import Approvals from "./pages/Approvals.jsx";
 import Archive from "./pages/Archive.jsx";
 import Logs from "./pages/Logs.jsx";
 import NotFound from "./pages/NotFound.jsx";
+import Landing from "./pages/public/Landing.jsx";
 
 export default function App() {
   return (
     <Routes>
       {/* Public: anyone can open these */}
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/verify-email/:token" element={<VerifyEmail />} />
@@ -47,8 +49,6 @@ export default function App() {
         <Route path="/approvals" element={<Approvals />} />
         <Route path="/archive" element={<Archive />} />
       </Route>
-
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
