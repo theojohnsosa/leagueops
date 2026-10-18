@@ -170,10 +170,12 @@ export async function getArchivedEvents(req, res, next) {
         ? getRestoreDeadline(event.archivedAt)
         : null;
 
+      const validDeadline =
+        deadline !== null && Number.isFinite(deadline.getTime());
+
       const canRestore =
         event.archiveStatus === "archived" &&
-        deadline !== null &&
-        Number.isFinite(deadline.getTime()) &&
+        validDeadline &&
         now < deadline.getTime();
 
       return {
