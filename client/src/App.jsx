@@ -3,6 +3,9 @@ import { Route, Routes } from "react-router-dom";
 import axios from "axios";
 import Header from "./components/Header.jsx";
 import Registrations from "./pages/admin/registrations.jsx";
+import Schedule from "./pages/admin/schedule.jsx";
+import EventSchedule from "./pages/admin/eventSchedule.jsx";
+import Bracket from "./pages/bracket.jsx";
 
 function Home() {
   const [health, setHealth] = useState(null);
@@ -51,7 +54,10 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/admin/registrations" element={<Registrations />} />
+      <Route path="/admin/schedule" element={<Schedule />} />
+      <Route path="/bracket" element={<Bracket />} />
       <Route path="*" element={<NotBuilt />} />
+      <Route path="/admin/schedule/:eventId" element={<EventSchedule />} />
     </Routes>
   );
 }
