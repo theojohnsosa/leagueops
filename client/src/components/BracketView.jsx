@@ -64,7 +64,7 @@ function MatchCard({ match: m }) {
         m.status === "cancelled" ? "opacity-50" : ""
       }`}
     >
-      <p className="mb-2 text-center text-[11px] text-gray-500">
+      <p className="mb-2 text-left text-[11px] text-gray-500">
         Match {m.matchNumber ?? "–"}
       </p>
       <div className="grid gap-1.5">

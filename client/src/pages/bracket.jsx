@@ -108,7 +108,7 @@ export default function Bracket() {
                     id="bracket-event"
                     value={activeId}
                     onChange={(e) => setSelectedId(e.target.value)}
-                    className="h-[34px] w-[210px] max-w-full appearance-none truncate rounded-md border border-gray-200 bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2214%22%20height=%2214%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%236b7280%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-[length:14px] bg-[right_10px_center] bg-no-repeat pl-3 pr-8 text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                    className="h-8.5 w-52.5 max-w-full appearance-none truncate rounded-md border border-gray-200 bg-white bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2214%22%20height=%2214%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%236b7280%22%20stroke-width=%222%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m6%209%206%206%206-6%22/%3E%3C/svg%3E')] bg-size-[14px] bg-position-[right_10px_center] bg-no-repeat pl-3 pr-8 text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
                     >
                   {events.map((e) => (
                     <option key={e._id} value={e._id}>
