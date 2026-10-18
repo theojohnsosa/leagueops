@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { Ctx } from "./authContext.js";
 import api, { USE_MOCK } from "../services/api.js";
 
 const MOCK = {
@@ -12,33 +13,27 @@ const MOCK = {
   isEmailVerified: true,
 };
 
-const Ctx = createContext(null);
-
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(USE_MOCK ? MOCK : null);
+  const [loading, setLoading] = useState(!USE_MOCK);
 
   useEffect(() => {
+    if (USE_MOCK) return;
+
     let active = true;
 
-    if (USE_MOCK) {
-      setLoading(false);
-      return () => {
-        active = false;
-      };
+    async function checkAuth() {
+      try {
+        const { data } = await api.get("/auth/me");
+        if (active) setUser(data.user);
+      } catch {
+        if (active) setUser(null);
+      } finally {
+        if (active) setLoading(false);
+      }
     }
 
-    api
-      .get("/auth/me")
-      .then(({ data }) => {
-        if (active) setUser(data.user);
-      })
-      .catch(() => {
-        if (active) setUser(null);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    checkAuth();
 
     return () => {
       active = false;
@@ -66,7 +61,7 @@ export function AuthProvider({ children }) {
         await api.post("/auth/logout");
       }
     } finally {
-      setUser(null);
+      setUser(USE_MOCK ? MOCK : null);
     }
   }
 
@@ -75,14 +70,4 @@ export function AuthProvider({ children }) {
       {children}
     </Ctx.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(Ctx);
-
-  if (!context) {
-    throw new Error("useAuth must be used inside AuthProvider.");
-  }
-
-  return context;
 }

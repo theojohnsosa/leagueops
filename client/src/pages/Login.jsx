@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import AuthLayout from "../components/shared/AuthLayout";
 import Input from "../components/shared/Input";
 import Button from "../components/shared/Button";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth.jsx";
 import { USE_MOCK } from "../services/api.js";
 import "../styles/auth.css";
 

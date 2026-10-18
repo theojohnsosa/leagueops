@@ -2,12 +2,12 @@ import { Router } from "express";
 import {
   getApprovalRequests,
   reviewEventApproval,
+  reviewUserDeactivation,
 } from "../controllers/approvals.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 
 const router = Router();
 
-// Only admins can view and review approval requests.
 router.get(
   "/approvals",
   requireAuth,
@@ -20,6 +20,13 @@ router.patch(
   requireAuth,
   requireRole("admin"),
   reviewEventApproval,
+);
+
+router.patch(
+  "/approvals/:id/user-deactivation-review",
+  requireAuth,
+  requireRole("admin"),
+  reviewUserDeactivation,
 );
 
 export default router;

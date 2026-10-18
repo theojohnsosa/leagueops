@@ -2,6 +2,7 @@ import { User } from "../models/Index.js";
 import AuditLog from "../models/AuditLogs.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import ApprovalRequest from "../models/ApprovalRequests.js";
 
 const ALLOWED_ROLES = ["admin", "head", "committee", "player"];
 
@@ -229,5 +230,82 @@ export const updateUserStatus = asyncHandler(async (req, res) => {
   return res.json({
     message: `User ${isActive ? "activated" : "deactivated"} successfully.`,
     user: publicUser(user),
+  });
+});
+
+export const requestUserDeactivation = asyncHandler(async (req, res) => {
+  validateObjectId(req.params.id);
+
+  const reason = String(req.body?.reason || "").trim();
+
+  if (!reason) {
+    throw new AppError(
+      400,
+      "REASON_REQUIRED",
+      "A reason is required to request account deactivation.",
+    );
+  }
+
+  const targetUser = await User.findById(req.params.id);
+
+  if (!targetUser) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found.");
+  }
+
+  if (String(targetUser._id) === String(req.user._id)) {
+    throw new AppError(
+      400,
+      "SELF_DEACTIVATION",
+      "You cannot request deactivation of your own account.",
+    );
+  }
+
+  if (!targetUser.isActive) {
+    throw new AppError(
+      409,
+      "USER_ALREADY_INACTIVE",
+      "This account is already inactive.",
+    );
+  }
+
+  const existingRequest = await ApprovalRequest.findOne({
+    type: "user_deactivation",
+    targetId: targetUser._id,
+    status: "pending",
+  });
+
+  if (existingRequest) {
+    throw new AppError(
+      409,
+      "DEACTIVATION_ALREADY_PENDING",
+      "A deactivation request is already pending for this account.",
+    );
+  }
+
+  const request = await ApprovalRequest.create({
+    type: "user_deactivation",
+    targetId: targetUser._id,
+    requestedBy: req.user._id,
+    reason,
+    status: "pending",
+  });
+
+  try {
+    await writeAuditLog({
+      req,
+      action: "USER_DEACTIVATION_REQUESTED",
+      targetUser,
+      description: `Requested account deactivation. Reason: ${reason}`,
+    });
+  } catch (error) {
+    console.error(
+      "Failed to write deactivation request audit log:",
+      error.message,
+    );
+  }
+
+  return res.status(201).json({
+    message: "Deactivation request submitted for approval.",
+    request,
   });
 });

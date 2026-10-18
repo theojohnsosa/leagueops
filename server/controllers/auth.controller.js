@@ -334,12 +334,28 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   }
 
   const tokenHash = hashToken(token);
-  const verification = await EmailVerification.findOne({
-    tokenHash,
-    usedAt: { $exists: false },
-  });
+
+  // Find the token whether it is unused or already claimed.
+  const verification = await EmailVerification.findOne({ tokenHash });
 
   if (!verification) {
+    throw new AppError(
+      400,
+      "TOKEN_INVALID",
+      "This verification link is invalid or has already been used.",
+    );
+  }
+
+  // Make repeated requests safe after successful verification.
+  if (verification.usedAt) {
+    const user = await User.findById(verification.userId);
+
+    if (user?.isEmailVerified) {
+      return res.json({
+        message: "Email verified successfully. You can now log in.",
+      });
+    }
+
     throw new AppError(
       400,
       "TOKEN_INVALID",
@@ -355,7 +371,7 @@ export const verifyEmail = asyncHandler(async (req, res) => {
     );
   }
 
-  // Claim the token atomically so concurrent requests cannot both use it.
+  // Atomically claim the token to prevent concurrent first-time use.
   const claimed = await EmailVerification.findOneAndUpdate(
     {
       _id: verification._id,
@@ -367,6 +383,15 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   );
 
   if (!claimed) {
+    // Another request may have verified the account first.
+    const user = await User.findById(verification.userId);
+
+    if (user?.isEmailVerified) {
+      return res.json({
+        message: "Email verified successfully. You can now log in.",
+      });
+    }
+
     throw new AppError(
       400,
       "TOKEN_INVALID",
@@ -399,7 +424,6 @@ export const verifyEmail = asyncHandler(async (req, res) => {
       message: "Email verified successfully. You can now log in.",
     });
   } catch (error) {
-    // Allow retry if the database update failed after claiming the token.
     await EmailVerification.updateOne(
       { _id: verification._id, usedAt: claimed.usedAt },
       { $unset: { usedAt: "" } },

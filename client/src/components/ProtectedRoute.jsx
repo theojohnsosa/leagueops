@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext.jsx";
+import { useAuth } from "../context/useAuth.jsx";
 
 // <ProtectedRoute />                      any logged-in user
 // <ProtectedRoute roles={['admin']} />    only these roles

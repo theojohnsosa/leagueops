@@ -27,14 +27,27 @@ export default function VerifyEmail() {
         setMessage(
           data.message || "Your email address has been verified successfully.",
         );
-      } catch (error) {
+      } catch {
         if (cancelled) return;
 
-        setStatus("error");
-        setMessage(
-          error.response?.data?.message ||
-            "Verification failed. The link may have expired or already been used.",
-        );
+        // If the request failed, check whether a duplicate request
+        // already verified the account before showing an error.
+        try {
+          await api.post("/auth/verify-email", { token });
+
+          if (cancelled) return;
+
+          setStatus("success");
+          setMessage("Email verified successfully. You can now log in.");
+        } catch (retryError) {
+          if (cancelled) return;
+
+          setStatus("error");
+          setMessage(
+            retryError.response?.data?.message ||
+              "Verification failed. The link may have expired or already been used.",
+          );
+        }
       }
     }
 

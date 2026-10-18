@@ -4,6 +4,8 @@ import ApprovalRequest from "../models/ApprovalRequests.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { logAudit, logEvent } from "../utils/logger.js";
+import User from "../models/Users.js";
+import AuditLog from "../models/AuditLogs.js";
 
 export const getApprovalRequests = asyncHandler(async (req, res) => {
   const requests = await ApprovalRequest.find({ type: "event" })
@@ -141,6 +143,141 @@ export const reviewEventApproval = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: `Event ${decision} successfully.`,
+    data: result,
+  });
+});
+
+export const reviewUserDeactivation = asyncHandler(async (req, res) => {
+  const { decision, reviewNote } = req.body || {};
+
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    throw new AppError(
+      400,
+      "INVALID_APPROVAL_ID",
+      "Invalid approval request ID.",
+    );
+  }
+
+  if (!["approved", "rejected"].includes(decision)) {
+    throw new AppError(
+      400,
+      "INVALID_DECISION",
+      'Decision must be "approved" or "rejected".',
+    );
+  }
+
+  if (reviewNote !== undefined && typeof reviewNote !== "string") {
+    throw new AppError(
+      400,
+      "INVALID_REVIEW_NOTE",
+      "Review note must be a string.",
+    );
+  }
+
+  const session = await mongoose.startSession();
+  let result;
+
+  try {
+    await session.withTransaction(async () => {
+      const request = await ApprovalRequest.findOne({
+        _id: req.params.id,
+        type: "user_deactivation",
+        status: "pending",
+      }).session(session);
+
+      if (!request) {
+        throw new AppError(
+          404,
+          "PENDING_APPROVAL_NOT_FOUND",
+          "Pending deactivation request not found.",
+        );
+      }
+
+      if (String(request.requestedBy) === String(req.user._id)) {
+        throw new AppError(
+          403,
+          "SELF_APPROVAL_FORBIDDEN",
+          "You cannot review your own deactivation request.",
+        );
+      }
+
+      const user = await User.findById(request.targetId).session(session);
+
+      if (!user) {
+        throw new AppError(
+          404,
+          "USER_NOT_FOUND",
+          "The account associated with this request no longer exists.",
+        );
+      }
+
+      if (!user.isActive) {
+        throw new AppError(
+          409,
+          "USER_ALREADY_INACTIVE",
+          "This account is already inactive.",
+        );
+      }
+
+      const reviewedAt = new Date();
+      const note = typeof reviewNote === "string" ? reviewNote.trim() : "";
+
+      request.status = decision;
+      request.reviewedBy = req.user._id;
+      request.reviewedAt = reviewedAt;
+      request.reviewNote = note;
+
+      if (decision === "approved") {
+        user.isActive = false;
+        user.deactivatedBy = req.user._id;
+        user.deactivatedAt = reviewedAt;
+        await user.save({ session });
+      }
+
+      await request.save({ session });
+
+      await AuditLog.create(
+        [
+          {
+            actorId: req.user._id,
+            actorName:
+              `${req.user.firstName || ""} ${req.user.lastName || ""}`.trim(),
+            actorRole: req.user.role,
+            action:
+              decision === "approved"
+                ? "USER_DEACTIVATION_APPROVED"
+                : "USER_DEACTIVATION_REJECTED",
+            targetType: "User",
+            targetId: user._id,
+            description:
+              `Deactivation request ${decision}. ` +
+              `Reason: ${request.reason || "Not provided"}. ` +
+              `Review note: ${note || "None"}.`,
+          },
+        ],
+        { session },
+      );
+
+      result = {
+        request: request.toObject(),
+        user: {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          studentEmail: user.studentEmail,
+          studentId: user.studentId,
+          role: user.role,
+          isActive: user.isActive,
+        },
+      };
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: `User deactivation request ${decision}.`,
     data: result,
   });
 });

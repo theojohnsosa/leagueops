@@ -4,6 +4,7 @@ import {
   getUserById,
   updateUserRole,
   updateUserStatus,
+  requestUserDeactivation,
 } from "../controllers/users.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 
@@ -16,5 +17,7 @@ router.get("/users", getUsers);
 router.get("/users/:id", getUserById);
 router.patch("/users/:id/role", updateUserRole);
 router.patch("/users/:id/status", updateUserStatus);
+
+router.post("/users/:id/deactivation-request", requestUserDeactivation);
 
 export default router;
