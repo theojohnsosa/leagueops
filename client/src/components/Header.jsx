@@ -63,7 +63,7 @@ export default function Header() {
         <img
           src="/primary.png"
           alt=""
-          className="h-15 w-auto"
+          className="h-12 w-auto"
           onError={(e) => {
             e.currentTarget.style.display = "none";
           }}

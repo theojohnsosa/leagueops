@@ -5,7 +5,7 @@ const STATUS_BADGE = {
     label: "Upcoming",
     className: "border border-gray-200 bg-gray-100 text-gray-700",
   },
-  ongoing: { label: "Live", className: "bg-amber-100 text-amber-700" },
+  ongoing: { label: "Ongoing", className: "bg-amber-100 text-amber-700" },
   completed: { label: "Completed", className: "bg-slate-800 text-white" },
   cancelled: { label: "Cancelled", className: "bg-red-100 text-red-700" },
 };
