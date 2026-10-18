@@ -15,7 +15,6 @@ import archiveRoutes from "./routes/archive.routes.js";
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 import announcementRoutes from "./routes/announcements.routes.js";
 import authRoutes from "./routes/auth.routes.js";
-import eventRoutes from "./routes/events.routes.js";
 import approvalRoutes from "./routes/approvals.routes.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
@@ -62,7 +61,6 @@ app.use("/api", archiveRoutes);
 // ---------- Start ----------
 app.use("/api", announcementRoutes);
 app.use("/api", authRoutes);
-app.use("/api", eventRoutes);
 app.use("/api", approvalRoutes);
 
 // Error handlers must come after all API routes.
