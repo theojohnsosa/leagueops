@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
+import { startArchiveExpirationJob } from "./jobs/archiveExpiration.job.js";
+
 import registrationRoutes from "./routes/registrations.routes.js";
 import matchRoutes from "./routes/matches.routes.js";
 import archiveRoutes from "./routes/archive.routes.js";
@@ -15,9 +17,10 @@ import authRoutes from "./routes/auth.routes.js";
 import approvalRoutes from "./routes/approvals.routes.js";
 import eventRoutes from "./routes/events.routes.js";
 import userRoutes from "./routes/users.routes.js";
+import eventLogsRoutes from "./routes/eventLogs.routes.js";
+import auditLogsRoutes from "./routes/auditLogs.routes.js";
 
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
-import { expireArchivedEvents } from "./utils/expireArchivedEvents.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -28,9 +31,18 @@ dotenv.config({
 
 const app = express();
 
+if (process.env.DNS_SERVERS) {
+  dns.setServers(process.env.DNS_SERVERS.split(",").map((s) => s.trim()));
+}
+
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin: [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://localhost:5175",
+      "http://127.0.0.1:5175",
+    ],
     credentials: true,
   }),
 );
@@ -52,6 +64,8 @@ app.use("/api", registrationRoutes);
 app.use("/api", matchRoutes);
 app.use("/api", archiveRoutes);
 app.use("/api", eventRoutes);
+app.use("/api", eventLogsRoutes);
+app.use("/api", auditLogsRoutes);
 app.use("/api", announcementRoutes);
 app.use("/api", authRoutes);
 app.use("/api", approvalRoutes);
@@ -69,30 +83,13 @@ if (!MONGO_URI) {
   process.exit(1);
 }
 
-const EXPIRATION_INTERVAL_MS = 60 * 1000;
-
-const runExpirationJob = async () => {
-  try {
-    const count = await expireArchivedEvents();
-
-    if (count > 0) {
-      console.log(`Expired ${count} archived event(s).`);
-    }
-  } catch (error) {
-    console.error("Archive expiration job failed:", error);
-  }
-};
-
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
-
 mongoose
   .connect(MONGO_URI)
-  .then(async () => {
+  .then(() => {
     console.log("MongoDB Atlas connected");
 
-    // Run once immediately, then check every minute.
-    await runExpirationJob();
-    setInterval(runExpirationJob, EXPIRATION_INTERVAL_MS);
+    // Run archive expiration once at startup and then every minute.
+    startArchiveExpirationJob();
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

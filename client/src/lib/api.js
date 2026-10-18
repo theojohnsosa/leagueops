@@ -14,3 +14,4 @@ export function errorMessage(err) {
   const detail = data?.errors?.map((e) => e.message).join(" ");
   return [data?.message ?? err.message, detail].filter(Boolean).join(" ");
 }   
+export default api;
