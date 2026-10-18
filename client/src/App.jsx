@@ -3,8 +3,6 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import Schedule from "./pages/admin/schedule.jsx";
 import EventSchedule from "./pages/admin/eventSchedule.jsx";
-import EventLogs from "./pages/admin/EventLogs.jsx";
-import AuditLogs from "./pages/admin/AuditLogs.jsx";
 import Bracket from "./pages/bracket.jsx";
 
 import Login from "./pages/Login.jsx";

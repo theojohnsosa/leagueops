@@ -1,7 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "./App.css";
-import DashboardPage from "./pages/Dashboard.jsx";
 import leagueopsLogo from "./assets/NUHO TOURNAMENT HUB LOGO DRAFTS 1.png";
 import api from "./services/api.js";
 import EventLogs from "./pages/admin/EventLogs.jsx";
