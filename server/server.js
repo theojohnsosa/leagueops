@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import dns from "node:dns";
 
 import registrationRoutes from "./routes/registrations.routes.js";
 import matchRoutes from "./routes/matches.routes.js";
@@ -13,6 +14,8 @@ import announcementRoutes from "./routes/announcements.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import approvalRoutes from "./routes/approvals.routes.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
+import eventRoutes from "./routes/events.routes.js";
+import userRoutes from "./routes/users.routes.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -46,16 +49,19 @@ app.get("/api/health", (req, res) => {
 app.use("/api", registrationRoutes);
 app.use("/api", matchRoutes);
 app.use("/api", archiveRoutes);
-// ---------- Start ----------
+app.use("/api", eventRoutes);
 app.use("/api", announcementRoutes);
 app.use("/api", authRoutes);
 app.use("/api", approvalRoutes);
+app.use("/api", userRoutes);
 
 // Error handlers must come after all API routes.
 app.use(notFound);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
+
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 mongoose
   .connect(process.env.MONGO_URI)
@@ -67,4 +73,3 @@ mongoose
     console.error("MongoDB connection failed:", err.message);
     process.exit(1);
   });
-
