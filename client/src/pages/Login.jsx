@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AuthLayout from "../components/shared/AuthLayout";
 import Input from "../components/shared/Input";
@@ -21,7 +21,7 @@ function getErrorMessage(error) {
 }
 
 export default function Login() {
-  const { login, logout } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -29,36 +29,12 @@ export default function Login() {
     studentEmail: "",
     password: "",
   });
+
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(true);
 
   const destination = location.state?.from?.pathname || "/dashboard";
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function clearSession() {
-      try {
-        if (typeof logout === "function") {
-          await logout();
-        }
-      } catch (error) {
-        console.error("Failed to clear the existing session:", error);
-      } finally {
-        if (!cancelled) {
-          setLoggingOut(false);
-        }
-      }
-    }
-
-    clearSession();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [logout]);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -121,17 +97,6 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
-  }
-
-  if (loggingOut) {
-    return (
-      <AuthLayout
-        title="Signing out..."
-        subtitle="Clearing your existing session."
-      >
-        <p>Please wait.</p>
-      </AuthLayout>
-    );
   }
 
   return (
