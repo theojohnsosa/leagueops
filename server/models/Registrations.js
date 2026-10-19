@@ -1,33 +1,44 @@
 import mongoose from "mongoose";
 
-export const STATUSES = ["pending", "accepted", "rejected", "cancelled"];
+export const STATUSES = ["accepted", "rejected", "cancelled"];
 
-// ASSUMPTION: ERD only says "Array". Each player needs an identifier so the
-// rules engine can detect a player already on an accepted team.
 const playerSchema = new mongoose.Schema(
   {
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    studentId: { type: String, trim: true },
-    firstName: { type: String, trim: true },
-    lastName: { type: String, trim: true },
-    inGameName: { type: String, trim: true },
+    fullName: { type: String, required: true, trim: true },
+    studentId: { type: String, required: true, trim: true },
+    inGameName: { type: String, required: true, trim: true },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const registrationSchema = new mongoose.Schema(
   {
-    eventId: { type: mongoose.Schema.Types.ObjectId, ref: "Event", required: true, index: true },
-    submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    teamName: { type: String, required: true, trim: true },
-    division: { type: String, trim: true },
+    eventId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Event",
+      required: true,
+      index: true,
+    },
+    submittedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    teamName: { type: String, trim: true },
+    division: { type: String, enum: ["boys", "girls"] },
     rankDetails: { type: String, trim: true },
-    playerDetails: { type: [playerSchema], default: [] },
-    status: { type: String, enum: STATUSES, default: "pending", index: true },
+    players: { type: [playerSchema], default: [] },
+    substitutes: { type: [playerSchema], default: [] },
+    status: {
+      type: String,
+      enum: STATUSES,
+      default: "accepted",
+      index: true,
+    },
     rejectionReason: { type: String, trim: true },
     cancelledAt: { type: Date },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 registrationSchema.index({ eventId: 1, status: 1 });

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Header from "../../components/Header.jsx";
 import { api, errorMessage } from "../../lib/api.js";
+import BracketView from "../../components/BracketView.jsx";
 
 // ASSUMPTION: stage is a free label in your model, so these are suggestions.
 const STAGES = ["Group Stage", "Playoffs", "Finals"];
@@ -41,8 +42,6 @@ function parseScore(text) {
 function matchTitle(m) {
   return `${m.teamA ?? "TBD"} vs ${m.teamB ?? "TBD"}`;
 }
-
-const isLocked = (m) => ["completed", "cancelled"].includes(m.status);
 
 /* ---------- small icons ---------- */
 
@@ -102,8 +101,6 @@ function Field({ label, htmlFor, children }) {
 
 function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
   const editing = Boolean(match);
-  const cancelled = editing && match.status === "cancelled";
-  const locked = editing && isLocked(match);
 
   const [form, setForm] = useState(() => ({
     matchNumber: String(match?.matchNumber ?? nextNumber),
@@ -118,6 +115,8 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
       match && match.scoreA != null && match.scoreB != null
         ? `${match.scoreA} - ${match.scoreB}`
         : "",
+    winner: match?.winner?.teamName ?? "",
+    status: match?.status ?? "scheduled",
   }));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -134,6 +133,52 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
     setForm((f) => ({ ...f, [name]: value }));
   }
 
+  // Changing a team clears the winner if that winner no longer plays.
+  function setTeam(name, value) {
+    setForm((f) => {
+      const next = { ...f, [name]: value };
+      if (
+        next.winner &&
+        next.winner !== next.teamA &&
+        next.winner !== next.teamB
+      ) {
+        next.winner = "";
+      }
+      return next;
+    });
+  }
+
+  // While the match is Completed, the winner follows the score.
+  // For Scheduled or Ongoing the score is just a score (0 - 0 and ties are fine).
+  function setScore(value) {
+    setForm((f) => {
+      const next = { ...f, score: value };
+      const p = parseScore(value);
+      if (f.status === "completed" && p && p !== "invalid" && p.a !== p.b) {
+        next.winner = p.a > p.b ? f.teamA : f.teamB;
+      }
+      return next;
+    });
+  }
+
+  // Switching to Completed fills in the winner from the score if you have none.
+  function setStatus(value) {
+    setForm((f) => {
+      const next = { ...f, status: value };
+      const p = parseScore(f.score);
+      if (
+        value === "completed" &&
+        !f.winner &&
+        p &&
+        p !== "invalid" &&
+        p.a !== p.b
+      ) {
+        next.winner = p.a > p.b ? f.teamA : f.teamB;
+      }
+      return next;
+    });
+  }
+
   const teamOptions = useMemo(() => {
     const names = new Set(teams.map((t) => t.teamName));
     if (form.teamA) names.add(form.teamA);
@@ -141,24 +186,11 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
     return [...names];
   }, [teams, form.teamA, form.teamB]);
 
-  // Winner and status are worked out by the server from the score,
-  // so here they only preview what will happen.
-  const parsed = parseScore(form.score);
-  const scoreOk = parsed && parsed !== "invalid" && parsed.a !== parsed.b;
-  const winner = scoreOk
-    ? parsed.a > parsed.b
-      ? form.teamA
-      : form.teamB
-    : (match?.winner?.teamName ?? "");
-  const shownStatus = cancelled
-    ? "cancelled"
-    : scoreOk
-      ? "completed"
-      : (match?.status ?? "scheduled");
-
   async function submit(e) {
     e.preventDefault();
     setError("");
+
+    const parsed = parseScore(form.score);
 
     if (!form.round.trim()) return setError("Round is required.");
     if (!editing && (!form.teamA.trim() || !form.teamB.trim())) {
@@ -170,11 +202,19 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
     ) {
       return setError("A team cannot play itself.");
     }
-    if (form.teamA && form.teamA === form.teamB) {
-      return setError("A team cannot play itself.");
-    }
     if (parsed === "invalid") {
       return setError("Enter the score like 2 - 1.");
+    }
+    // Only a Completed match has result rules.
+    if (editing && form.status === "completed") {
+      if (parsed && parsed.a === parsed.b) {
+        return setError("A completed match cannot have a tied score.");
+      }
+      if (!form.winner) {
+        return setError(
+          "Pick a winner or enter a score before marking the match completed.",
+        );
+      }
     }
     const number =
       form.matchNumber === "" ? undefined : Number(form.matchNumber);
@@ -197,47 +237,54 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
         if (form.endTime) body.endTime = form.endTime;
         await api.post(`/events/${eventId}/matches`, body);
       } else {
-        // 1) Reschedule: send only what changed (the server rejects edits to
-        //    completed or cancelled matches, so skip them there).
-        if (!locked) {
-          const changes = {};
-          if (form.round.trim() !== (match.round ?? "")) {
-            changes.round = form.round.trim();
-          }
-          if (form.stage !== (match.stage ?? "")) changes.stage = form.stage;
-          if (number !== undefined && number !== match.matchNumber) {
-            changes.matchNumber = number;
-          }
-          if (form.date && form.date !== dateOnly(match.scheduledDate)) {
-            changes.scheduledDate = form.date;
-          }
-          if (form.startTime && form.startTime !== (match.startTime ?? "")) {
-            changes.startTime = form.startTime;
-          }
-          if (form.endTime && form.endTime !== (match.endTime ?? "")) {
-            changes.endTime = form.endTime;
-          }
-          if (Object.keys(changes).length > 0) {
-            await api.patch(`/matches/${match._id}`, changes);
-          }
+        // One request: send only what changed.
+        const changes = {};
+        if (form.round.trim() !== (match.round ?? "")) {
+          changes.round = form.round.trim();
         }
-        // 2) Score: the server sets the winner and marks the match completed.
-        if (
-          !cancelled &&
-          parsed &&
-          (parsed.a !== match.scoreA || parsed.b !== match.scoreB)
-        ) {
-          await api.patch(`/matches/${match._id}/result`, {
-            scoreA: parsed.a,
-            scoreB: parsed.b,
-          });
+        if (form.stage !== (match.stage ?? "")) changes.stage = form.stage;
+        if (number !== undefined && number !== match.matchNumber) {
+          changes.matchNumber = number;
+        }
+        if (form.date && form.date !== dateOnly(match.scheduledDate)) {
+          changes.scheduledDate = form.date;
+        }
+        if (form.startTime && form.startTime !== (match.startTime ?? "")) {
+          changes.startTime = form.startTime;
+        }
+        if (form.endTime && form.endTime !== (match.endTime ?? "")) {
+          changes.endTime = form.endTime;
+        }
+        if (form.teamA !== (match.teamA ?? "")) changes.teamA = form.teamA;
+        if (form.teamB !== (match.teamB ?? "")) changes.teamB = form.teamB;
+        if (form.status !== match.status) changes.status = form.status;
+        if (form.winner !== (match.winner?.teamName ?? "")) {
+          changes.winner = form.winner; // "" clears the winner
+        }
+
+        const hadScore = match.scoreA != null && match.scoreB != null;
+        if (parsed) {
+          if (
+            !hadScore ||
+            parsed.a !== match.scoreA ||
+            parsed.b !== match.scoreB
+          ) {
+            changes.scoreA = parsed.a;
+            changes.scoreB = parsed.b;
+          }
+        } else if (hadScore) {
+          changes.scoreA = null; // empty score box clears the score
+          changes.scoreB = null;
+        }
+
+        if (Object.keys(changes).length > 0) {
+          await api.patch(`/matches/${match._id}`, changes);
         }
       }
       await onChanged();
       onClose();
     } catch (err) {
       setError(errorMessage(err));
-      await onChanged(); // a partial save may have gone through
       setSaving(false);
     }
   }
@@ -270,14 +317,6 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
         </div>
 
         <form onSubmit={submit} className="grid gap-4">
-          {locked && (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {cancelled
-                ? "A cancelled match cannot be edited."
-                : "A completed match cannot be rescheduled. You can still correct its score."}
-            </p>
-          )}
-
           <div className="grid grid-cols-2 gap-4">
             <Field label="Match #" htmlFor="m-number">
               <input
@@ -286,7 +325,6 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
                 min="1"
                 value={form.matchNumber}
                 onChange={(e) => set("matchNumber", e.target.value)}
-                disabled={locked}
                 className={fieldClass}
               />
             </Field>
@@ -296,7 +334,6 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
                 type="text"
                 value={form.round}
                 onChange={(e) => set("round", e.target.value)}
-                disabled={locked}
                 placeholder="Quarterfinal"
                 className={fieldClass}
               />
@@ -307,11 +344,10 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
                 <select
                   id="m-teamA"
                   value={form.teamA}
-                  onChange={(e) => set("teamA", e.target.value)}
-                  disabled
+                  onChange={(e) => setTeam("teamA", e.target.value)}
                   className={fieldClass}
                 >
-                  <option value="">TBD</option>
+                  {!form.teamA && <option value="">Select team</option>}
                   {teamOptions.map((n) => (
                     <option key={n} value={n}>
                       {n}
@@ -334,11 +370,10 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
                 <select
                   id="m-teamB"
                   value={form.teamB}
-                  onChange={(e) => set("teamB", e.target.value)}
-                  disabled
+                  onChange={(e) => setTeam("teamB", e.target.value)}
                   className={fieldClass}
                 >
-                  <option value="">TBD</option>
+                  {!form.teamB && <option value="">Select team</option>}
                   {teamOptions.map((n) => (
                     <option key={n} value={n}>
                       {n}
@@ -363,7 +398,6 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
                 type="date"
                 value={form.date}
                 onChange={(e) => set("date", e.target.value)}
-                disabled={locked}
                 className={fieldClass}
               />
             </Field>
@@ -372,7 +406,6 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
                 id="m-stage"
                 value={form.stage}
                 onChange={(e) => set("stage", e.target.value)}
-                disabled={locked}
                 className={fieldClass}
               >
                 <option value=""></option>
@@ -392,7 +425,6 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
                 type="time"
                 value={form.startTime}
                 onChange={(e) => set("startTime", e.target.value)}
-                disabled={locked}
                 className={fieldClass}
               />
             </Field>
@@ -402,7 +434,6 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
                 type="time"
                 value={form.endTime}
                 onChange={(e) => set("endTime", e.target.value)}
-                disabled={locked}
                 className={fieldClass}
               />
             </Field>
@@ -412,11 +443,11 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
                 <Field label="Winner" htmlFor="m-winner">
                   <select
                     id="m-winner"
-                    value={winner}
-                    disabled
+                    value={form.winner}
+                    onChange={(e) => set("winner", e.target.value)}
                     className={fieldClass}
                   >
-                    <option value="">TBD</option>
+                    <option value="">No winner yet</option>
                     {[form.teamA, form.teamB].filter(Boolean).map((n) => (
                       <option key={n} value={n}>
                         {n}
@@ -427,8 +458,8 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
                 <Field label="Match Status" htmlFor="m-status">
                   <select
                     id="m-status"
-                    value={shownStatus}
-                    disabled
+                    value={form.status}
+                    onChange={(e) => setStatus(e.target.value)}
                     className={fieldClass}
                   >
                     {Object.entries(STATUS_LABELS).map(([value, label]) => (
@@ -449,13 +480,13 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
                 type="text"
                 inputMode="numeric"
                 value={form.score}
-                onChange={(e) => set("score", e.target.value)}
-                disabled={cancelled}
+                onChange={(e) => setScore(e.target.value)}
                 placeholder="2 - 1"
                 className={fieldClass}
               />
               <p className="mt-1 text-xs text-gray-500">
-                Winner and status are set automatically when you save a score.
+                Scheduled and Ongoing matches can be 0 - 0 or tied. A Completed
+                match needs a winner and cannot be tied.
               </p>
             </Field>
           )}
@@ -471,73 +502,13 @@ function MatchModal({ eventId, match, teams, nextNumber, onClose, onChanged }) {
 
           <button
             type="submit"
-            disabled={saving || cancelled}
+            disabled={saving}
             className="w-full rounded-lg bg-[#0038a8] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#002f8f] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? "Saving..." : editing ? "Update Match" : "Add Match"}
           </button>
         </form>
       </div>
-    </div>
-  );
-}
-
-/* ---------- Bracket tab (built from matches, grouped by round) ---------- */
-
-function Bracket({ matches }) {
-  const rounds = useMemo(() => {
-    const map = new Map();
-    for (const m of matches) {
-      const key = m.round?.trim() || "Unassigned";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(m);
-    }
-    return [...map];
-  }, [matches]);
-
-  if (rounds.length === 0) {
-    return (
-      <p className="py-10 text-center text-gray-500">
-        No matches yet. Add matches to see them grouped by round here.
-      </p>
-    );
-  }
-
-  return (
-    <div className="flex gap-4 overflow-x-auto pb-2">
-      {rounds.map(([round, list]) => (
-        <div key={round} className="w-60 shrink-0">
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">{round}</h3>
-          <div className="grid gap-2">
-            {list.map((m) => {
-              const winnerName = m.winner?.teamName;
-              const row = (team, score) => (
-                <div
-                  className={`flex items-center justify-between gap-2 px-3 py-1.5 text-sm ${
-                    winnerName && winnerName === team
-                      ? "font-semibold text-green-700"
-                      : ""
-                  }`}
-                >
-                  <span className="truncate">{team ?? "TBD"}</span>
-                  <span>{score ?? "–"}</span>
-                </div>
-              );
-              return (
-                <div
-                  key={m._id}
-                  className={`divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white ${
-                    m.status === "cancelled" ? "opacity-50" : ""
-                  }`}
-                >
-                  {row(m.teamA, m.scoreA)}
-                  {row(m.teamB, m.scoreB)}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -595,7 +566,7 @@ export default function EventSchedule() {
   async function cancelMatch(m) {
     if (
       !window.confirm(
-        `Cancel "${matchTitle(m)}"? It will be marked as cancelled and can't be edited afterwards.`,
+        `Cancel "${matchTitle(m)}"? It will be marked as cancelled. You can change the status again later with Edit.`,
       )
     ) {
       return;
@@ -621,7 +592,8 @@ export default function EventSchedule() {
             to="/admin/schedule"
             className="inline-flex items-center gap-2 text-sm text-gray-700 hover:text-[#0038a8]"
           >
-            ⬅ Back to Schedule Manager
+            <img src="/left-arrow.png" alt="" className="h-4 w-3" />
+            Back to Schedule Manager
           </Link>
 
           {loading && (
@@ -714,7 +686,7 @@ export default function EventSchedule() {
 
               <div className="mt-4">
                 {tab === "bracket" ? (
-                  <Bracket matches={matches} />
+                  <BracketView matches={matches} />
                 ) : matches.length === 0 ? (
                   <p className="py-10 text-center text-gray-500">
                     No matches yet. Click Add Match to schedule the first one.
@@ -774,8 +746,7 @@ export default function EventSchedule() {
                             <button
                               type="button"
                               onClick={() => setModal({ match: m })}
-                              disabled={cancelled}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-gray-100"
                             >
                               <Pencil />
                               Edit

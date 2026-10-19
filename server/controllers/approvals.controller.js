@@ -3,12 +3,14 @@ import Event from "../models/Events.js";
 import ApprovalRequest from "../models/ApprovalRequests.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import { logAudit, logEvent } from "../utils/logger.js";
 
-// GET /api/approvals
 export const getApprovalRequests = asyncHandler(async (req, res) => {
-  const requests = await ApprovalRequest.find({
-    type: "event",
-  }).sort({ createdAt: -1 });
+  const requests = await ApprovalRequest.find({ type: "event" })
+    .sort({ createdAt: -1 })
+    .populate("requestedBy", "name fullName email")
+    .populate("reviewedBy", "name fullName email")
+    .lean();
 
   res.status(200).json({
     success: true,
@@ -45,7 +47,6 @@ export const reviewEventApproval = asyncHandler(async (req, res) => {
   }
 
   const session = await mongoose.startSession();
-
   let result;
 
   try {
@@ -64,12 +65,9 @@ export const reviewEventApproval = asyncHandler(async (req, res) => {
         );
       }
 
-      const event = await Event.findOne({
-        _id: request.targetId,
-        approvalStatus: "pending",
-      }).session(session);
+      const event = await Event.findById(request.targetId).session(session);
 
-      if (!event) {
+      if (!event || event.approvalStatus !== "pending") {
         throw new AppError(
           409,
           "EVENT_NOT_PENDING",
@@ -77,16 +75,17 @@ export const reviewEventApproval = asyncHandler(async (req, res) => {
         );
       }
 
-      if (event.isArchived) {
+      if (event.isArchived || event.archiveStatus !== "active") {
         throw new AppError(
           409,
           "EVENT_ARCHIVED",
-          "Archived events cannot be reviewed.",
+          "Archived or expired events cannot be reviewed.",
         );
       }
 
       const reviewedAt = new Date();
       const note = typeof reviewNote === "string" ? reviewNote.trim() : "";
+      const previousStatus = event.status;
 
       request.status = decision;
       request.reviewedBy = req.user._id;
@@ -104,6 +103,31 @@ export const reviewEventApproval = asyncHandler(async (req, res) => {
 
       await event.save({ session });
       await request.save({ session });
+
+      const action =
+        decision === "approved" ? "EVENT_APPROVED" : "EVENT_REJECTED";
+
+      await logAudit({
+        actor: req.user,
+        action,
+        targetType: "Event",
+        targetId: event._id,
+        description: `Event "${event.title}" ${decision}.`,
+        session,
+      });
+
+      await logEvent({
+        eventId: event._id,
+        actor: req.user,
+        action,
+        description: `Event ${decision}.`,
+        changes: {
+          approvalStatus: { before: "pending", after: decision },
+          status: { before: previousStatus, after: event.status },
+          reviewNote: note,
+        },
+        session,
+      });
 
       result = {
         event: event.toObject(),

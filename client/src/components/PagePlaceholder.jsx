@@ -1,8 +1,8 @@
-export default function PagePlaceholder({ title }) {
+export default function PagePlaceholder({ title = "Page" }) {
   return (
-    <div style={{ padding: 24 }}>
+    <main style={{ padding: "32px", fontFamily: "sans-serif" }}>
       <h1>{title}</h1>
-      <p>This page is not built yet.</p>
-    </div>
+      <p>This page is under development.</p>
+    </main>
   );
 }

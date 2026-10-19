@@ -1,4 +1,3 @@
-
 import mongoose from "mongoose";
 import Event from "../models/Events.js";
 import EventLog from "../models/EventLog.js";
@@ -56,7 +55,11 @@ async function writeLogs(event, user, action, description) {
   ]);
 }
 
-export async function archiveEvent(req, res) {
+function getRestoreDeadline(archivedAt) {
+  return new Date(new Date(archivedAt).getTime() + RESTORE_WINDOW_MS);
+}
+
+export async function archiveEvent(req, res, next) {
   try {
     const user = getUser(req);
 
@@ -116,9 +119,12 @@ export async function archiveEvent(req, res) {
     }
 
     event.isArchived = true;
+    event.archiveStatus = "archived";
     event.archivedAt = new Date();
     event.archivedBy = userId;
     event.archiveReason = reason.trim();
+    event.restoredAt = undefined;
+    event.restoredBy = undefined;
 
     await event.save();
 
@@ -132,17 +138,14 @@ export async function archiveEvent(req, res) {
     return res.json({
       message: "Event archived successfully.",
       event,
-      restoreDeadline: new Date(
-        event.archivedAt.getTime() + RESTORE_WINDOW_MS,
-      ),
+      restoreDeadline: getRestoreDeadline(event.archivedAt),
     });
   } catch (error) {
-    console.error("archiveEvent error:", error);
-    return res.status(500).json({ message: "Server error." });
+    return next(error);
   }
 }
 
-export async function getArchivedEvents(req, res) {
+export async function getArchivedEvents(req, res, next) {
   try {
     const user = getUser(req);
 
@@ -156,37 +159,39 @@ export async function getArchivedEvents(req, res) {
       });
     }
 
-    const events = await Event.find({ isArchived: true })
-      .sort({ archivedAt: -1 })
-      .lean();
+    const events = await Event.find({ isArchived: true }).sort({
+      archivedAt: -1,
+    });
 
     const now = Date.now();
 
     const archivedEvents = events.map((event) => {
       const deadline = event.archivedAt
-        ? new Date(event.archivedAt).getTime() + RESTORE_WINDOW_MS
+        ? getRestoreDeadline(event.archivedAt)
         : null;
 
+      const validDeadline =
+        deadline !== null && Number.isFinite(deadline.getTime());
+
+      const canRestore =
+        event.archiveStatus === "archived" &&
+        validDeadline &&
+        now < deadline.getTime();
+
       return {
-        ...event,
-        restoreDeadline: deadline === null
-          ? null
-          : new Date(deadline),
-        canRestore:
-          deadline !== null &&
-          Number.isFinite(deadline) &&
-          now < deadline,
+        ...event.toObject(),
+        restoreDeadline: deadline,
+        canRestore,
       };
     });
 
     return res.json(archivedEvents);
   } catch (error) {
-    console.error("getArchivedEvents error:", error);
-    return res.status(500).json({ message: "Server error." });
+    return next(error);
   }
 }
 
-export async function restoreEvent(req, res) {
+export async function restoreEvent(req, res, next) {
   try {
     const user = getUser(req);
 
@@ -226,31 +231,35 @@ export async function restoreEvent(req, res) {
       });
     }
 
-    const archivedAt = new Date(event.archivedAt).getTime();
+    const deadline = getRestoreDeadline(event.archivedAt);
 
-    if (!Number.isFinite(archivedAt)) {
+    if (!Number.isFinite(deadline.getTime())) {
       return res.status(400).json({
         message: "Event has an invalid archive timestamp.",
       });
     }
 
-    const deadline = archivedAt + RESTORE_WINDOW_MS;
+    if (event.archiveStatus === "expired" || Date.now() >= deadline.getTime()) {
+      if (event.archiveStatus !== "expired") {
+        event.archiveStatus = "expired";
+        await event.save();
 
-    if (Date.now() >= deadline) {
-      await writeLogs(
-        event,
-        user,
-        "EVENT_RESTORE_EXPIRED",
-        "Restore was rejected because the 7-day restore window expired.",
-      );
+        await writeLogs(
+          event,
+          user,
+          "EVENT_ARCHIVE_EXPIRED",
+          "The 7-day archive restore window expired.",
+        );
+      }
 
       return res.status(410).json({
         message: "The 7-day restore window has expired.",
-        restoreDeadline: new Date(deadline),
+        restoreDeadline: deadline,
       });
     }
 
     event.isArchived = false;
+    event.archiveStatus = "active";
     event.restoredAt = new Date();
     event.restoredBy = userId;
 
@@ -268,7 +277,6 @@ export async function restoreEvent(req, res) {
       event,
     });
   } catch (error) {
-    console.error("restoreEvent error:", error);
-    return res.status(500).json({ message: "Server error." });
+    return next(error);
   }
 }
