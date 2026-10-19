@@ -1,13 +1,17 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+
 import "./App.css";
 import leagueopsLogo from "./assets/NUHO TOURNAMENT HUB LOGO DRAFTS 1.png";
 import api from "./services/api.js";
+
 import EventLogs from "./pages/admin/EventLogs.jsx";
 import AuditLogs from "./pages/admin/AuditLogs.jsx";
 import Registrations from "./pages/admin/registrations.jsx";
 import Schedule from "./pages/admin/schedule.jsx";
 import EventSchedule from "./pages/admin/eventSchedule.jsx";
+import ManageEvents from "./pages/admin/Manageevents.jsx";
+import Users from "./pages/admin/Users.jsx";
 
 const navItems = [
   ["Dashboard", "/dashboard"],
@@ -488,6 +492,10 @@ export default function ArchiveDashboard() {
 
       {location.pathname === "/dashboard" ? (
         <Dashboard />
+      ) : location.pathname === "/manage-events" ? (
+        <ManageEvents />
+      ) : location.pathname === "/users" ? (
+        <Users />
       ) : isArchivePage ? (
         <main className="archive-main" id="archive">
           <div className="archive-heading">
@@ -634,10 +642,6 @@ export default function ArchiveDashboard() {
             )
           )}
         </main>
-      ) : location.pathname === "/event-logs" ? (
-        <EventLogs />
-      ) : location.pathname === "/audit-logs" ? (
-        <AuditLogs />
       ) : location.pathname === "/event-logs" ? (
         <EventLogs />
       ) : location.pathname === "/audit-logs" ? (
@@ -813,6 +817,6 @@ export default function ArchiveDashboard() {
           </section>
         </div>
       )}
-    </div>
+  </div>
   );
 }

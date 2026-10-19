@@ -1,0 +1,212 @@
+.users-container {
+  padding: 30px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.users-header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.users-header-section h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 4px;
+}
+
+.users-header-section p {
+  color: #666;
+  font-size: 14px;
+}
+
+.add-user-btn {
+  background-color: #0052cc;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.add-user-btn:hover {
+  background-color: #0747a6;
+}
+
+.users-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.users-search-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 280px;
+}
+
+.users-search-wrapper .search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #888;
+  font-size: 16px;
+}
+
+.users-search-wrapper input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border: 1px solid #dfe1e6;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  background: #fff;
+}
+
+.users-search-wrapper input:focus {
+  border-color: #0052cc;
+}
+
+.users-toolbar select {
+  padding: 10px 14px;
+  border: 1px solid #dfe1e6;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  cursor: pointer;
+  outline: none;
+}
+
+.users-toolbar select:focus {
+  border-color: #0052cc;
+}
+
+.users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.user-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.user-info-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #0052cc;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.user-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.user-title-row h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #172b4d;
+  margin: 0;
+}
+
+.role-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: capitalize;
+}
+
+.role-badge.head {
+  background-color: #fffae6;
+  color: #ffab00;
+}
+
+.role-badge.committee {
+  background-color: #e3fcef;
+  color: #006644;
+}
+
+.role-badge.player {
+  background-color: #deebff;
+  color: #0747a6;
+}
+
+.user-details p {
+  margin: 0;
+  font-size: 13px;
+  color: #5e6c84;
+}
+
+.user-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid #dfe1e6;
+  background: #fff;
+  color: #42526e;
+}
+
+.action-btn:hover {
+  background: #f4f5f7;
+}
+
+.action-btn.deactivate-btn {
+  color: #de350b;
+  border-color: #ffbdad;
+}
+
+.action-btn.deactivate-btn:hover {
+  background: #ffebe6;
+}
+
+.action-btn.activate-btn {
+  color: #006644;
+  border-color: #abf5d1;
+}
+
+.action-btn.activate-btn:hover {
+  background: #e3fcef;
+}
+
+.users-loading,
+.no-users {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
