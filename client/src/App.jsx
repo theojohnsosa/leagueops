@@ -9,6 +9,7 @@ import VerifyEmail from "./pages/VerifyEmail.jsx";
 import Landing from "./pages/public/Landing.jsx";
 import Events from "./pages/public/Events.jsx";
 import ArchiveDashboard from "./ArchiveDashboard.jsx";
+import EventDetails from "./pages/public/EventDetails.jsx";
 
 export default function App() {
   return (
@@ -18,6 +19,8 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/events" element={<Events />} />
+      <Route path="/events" element={<Events />} />
+      <Route path="/events/:eventId" element={<EventDetails />} />
       <Route path="/verify-email/:token" element={<VerifyEmail />} />
 
       {/* Any authenticated user */}
@@ -34,7 +37,10 @@ export default function App() {
         <Route path="/manage-events" element={<ArchiveDashboard />} />
         <Route path="/registrations" element={<ArchiveDashboard />} />
         <Route path="/schedule-manager" element={<ArchiveDashboard />} />
-        <Route path="/schedule-manager/:eventId" element={<ArchiveDashboard />} />
+        <Route
+          path="/schedule-manager/:eventId"
+          element={<ArchiveDashboard />}
+        />
         <Route path="/users" element={<ArchiveDashboard />} />
         <Route path="/announcements" element={<ArchiveDashboard />} />
       </Route>
