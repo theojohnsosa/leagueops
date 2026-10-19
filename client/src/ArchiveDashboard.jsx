@@ -5,6 +5,9 @@ import leagueopsLogo from "./assets/NUHO TOURNAMENT HUB LOGO DRAFTS 1.png";
 import api from "./services/api.js";
 import EventLogs from "./pages/admin/EventLogs.jsx";
 import AuditLogs from "./pages/admin/AuditLogs.jsx";
+import Registrations from "./pages/admin/registrations.jsx";
+import Schedule from "./pages/admin/schedule.jsx";
+import EventSchedule from "./pages/admin/eventSchedule.jsx";
 
 const navItems = [
   ["Dashboard", "/dashboard"],
@@ -635,6 +638,16 @@ export default function ArchiveDashboard() {
         <EventLogs />
       ) : location.pathname === "/audit-logs" ? (
         <AuditLogs />
+      ) : location.pathname === "/event-logs" ? (
+        <EventLogs />
+      ) : location.pathname === "/audit-logs" ? (
+        <AuditLogs />
+      ) : location.pathname === "/registrations" ? (
+        <Registrations />
+      ) : location.pathname === "/schedule-manager" ? (
+        <Schedule />
+      ) : location.pathname.startsWith("/schedule-manager/") ? (
+        <EventSchedule />
       ) : (
         <main className="archive-main">
           <div className="archive-heading">

@@ -1,8 +1,6 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
-import Schedule from "./pages/admin/schedule.jsx";
-import EventSchedule from "./pages/admin/eventSchedule.jsx";
 import Bracket from "./pages/bracket.jsx";
 
 import Login from "./pages/Login.jsx";
@@ -25,7 +23,7 @@ export default function App() {
         <Route path="/bracket" element={<Bracket />} />
       </Route>
 
-      {/* Admin dashboard and management pages */}
+      {/* Admin pages: ArchiveDashboard draws the header and picks the page */}
       <Route element={<ProtectedRoute roles={["admin"]} />}>
         <Route path="/dashboard" element={<ArchiveDashboard />} />
         <Route path="/archive" element={<ArchiveDashboard />} />
@@ -34,11 +32,9 @@ export default function App() {
         <Route path="/manage-events" element={<ArchiveDashboard />} />
         <Route path="/registrations" element={<ArchiveDashboard />} />
         <Route path="/schedule-manager" element={<ArchiveDashboard />} />
+        <Route path="/schedule-manager/:eventId" element={<ArchiveDashboard />} />
         <Route path="/users" element={<ArchiveDashboard />} />
         <Route path="/announcements" element={<ArchiveDashboard />} />
-
-        <Route path="/admin/schedule" element={<Schedule />} />
-        <Route path="/admin/schedule/:eventId" element={<EventSchedule />} />
       </Route>
 
       {/* Unknown routes */}

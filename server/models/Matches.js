@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-export const STATUSES = ["upcoming", "live", "completed"];
+export const STATUSES = ["scheduled", "ongoing", "completed", "cancelled"];
 
 const matchSchema = new mongoose.Schema(
   {
@@ -14,16 +14,9 @@ const matchSchema = new mongoose.Schema(
     round: { type: String, trim: true },
     stage: { type: String, trim: true },
 
-    teamA: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Registration",
-      default: null,
-    },
-    teamB: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Registration",
-      default: null,
-    },
+    // Team NAMES, matched against accepted registrations by the controller.
+    teamA: { type: String, trim: true },
+    teamB: { type: String, trim: true },
 
     scheduledDate: { type: Date },
     startTime: { type: String, trim: true },
@@ -32,16 +25,20 @@ const matchSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: STATUSES,
-      default: "upcoming",
+      default: "scheduled",
       index: true,
     },
+
+    // The winner IS a Registration id (the controller populates teamName).
     winner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Registration",
       default: null,
     },
-    scoreA: { type: Number, min: 0, default: 0 },
-    scoreB: { type: Number, min: 0, default: 0 },
+
+    // No default, so "no score yet" can be told apart from 0 - 0.
+    scoreA: { type: Number, min: 0 },
+    scoreB: { type: Number, min: 0 },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },

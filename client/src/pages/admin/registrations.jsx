@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import Header from "../../components/Header.jsx";
 import { api, errorMessage } from "../../lib/api.js";
 
 const STATUS_LABELS = {
@@ -151,7 +150,6 @@ export default function Registrations() {
 
   return (
     <>
-      <Header />
       <main className="min-h-screen bg-gray-50">
         <div className="mx-auto max-w-5xl px-5 py-8">
           <div className="flex items-start justify-between gap-4">
