@@ -7,7 +7,7 @@ import VerifyEmail from "./pages/VerifyEmail.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
-import Events from "./pages/Events.jsx";
+import Events from "./pages/public/Events.jsx";
 import EventDetails from "./pages/EventDetails.jsx";
 import Registrations from "./pages/Registrations.jsx";
 import Matches from "./pages/Matches.jsx";
