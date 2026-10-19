@@ -317,6 +317,22 @@ export default function ArchiveDashboard() {
   const [editing, setEditing] = useState(null);
   const [notice, setNotice] = useState("");
 
+  async function handleLogout() {
+    const confirmLogout = window.confirm("Are you sure you want to logout?");
+    if (!confirmLogout) return;
+
+    try {
+      await api.post("/auth/logout").catch(() => {});
+    } catch (err) {
+      console.error("Logout request failed:", err);
+    } finally {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      sessionStorage.clear();
+      navigate("/login");
+    }
+  }
+
   useEffect(() => {
     if (location.pathname !== "/archive") return undefined;
 
@@ -481,9 +497,7 @@ export default function ArchiveDashboard() {
           <button
             className="logout-button"
             type="button"
-            onClick={() =>
-              setNotice("Logout is not connected in this prototype.")
-            }
+            onClick={handleLogout}
           >
             ↪ <span>Logout</span>
           </button>
@@ -817,6 +831,6 @@ export default function ArchiveDashboard() {
           </section>
         </div>
       )}
-  </div>
+    </div>
   );
 }
