@@ -1,9 +1,10 @@
 export function isPubliclyVisible(event) {
+  if (!event) return false;
+
   return (
     event.approvalStatus === "approved" &&
     event.isArchived !== true &&
-    event.archiveStatus !== "archived" &&
-    event.archiveStatus !== "expired"
+    !["archived", "expired"].includes(event.archiveStatus)
   );
 }
 

@@ -2,9 +2,20 @@ import AuditLog from "../models/AuditLogs.js";
 import EventLog from "../models/EventLog.js";
 
 function actorDetails(user) {
+  const fullName = [user?.firstName, user?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
   return {
-    actorId: user?._id,
-    actorName: user?.name ?? user?.fullName ?? user?.email ?? "System",
+    actorId: user?._id ?? user?.id,
+    actorName:
+      fullName ||
+      user?.name ||
+      user?.fullName ||
+      user?.studentEmail ||
+      user?.email ||
+      "System",
     actorRole: user?.role ?? "system",
   };
 }
