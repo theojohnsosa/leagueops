@@ -1,0 +1,395 @@
+.event-details-page {
+  width: min(100% - 40px, 1030px);
+  margin: 0 auto;
+  padding: 42px 0 60px;
+  color: #111;
+}
+
+.event-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 36px;
+  color: #111;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.event-back-link > span {
+  font-size: 23px;
+  line-height: 1;
+}
+
+.event-back-link:hover {
+  color: #0643ad;
+}
+
+.event-details-card,
+.event-activity-card,
+.event-not-found {
+  padding: 28px;
+  border: 1px solid #e5e5e5;
+  border-radius: 19px;
+  background: #fff;
+}
+
+.event-details-card {
+  margin-bottom: 28px;
+}
+
+.event-details-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.event-details-heading {
+  min-width: 0;
+}
+
+.event-details-eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 7px;
+  color: #777;
+  font-size: 16px;
+}
+
+.event-details-eyebrow span:first-child {
+  color: #0643ad;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.event-eyebrow-separator {
+  color: #999;
+}
+
+.event-details-heading h1 {
+  margin: 0;
+  color: #111;
+  font-family: "Arial Narrow", Arial, sans-serif;
+  font-size: clamp(25px, 3vw, 31px);
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.7px;
+}
+
+.event-details-statuses {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.event-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 25px;
+  padding: 3px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.event-status-badge.published,
+.event-status-badge.approved {
+  color: #0643ad;
+  background: #e8f1ff;
+  border-color: #a9ccff;
+}
+
+.event-status-badge.open {
+  color: #087a38;
+  background: #e6ffed;
+  border-color: #91e5aa;
+}
+
+.event-status-badge.closed {
+  color: #a12626;
+  background: #fff0f0;
+  border-color: #f3b4b4;
+}
+
+.event-details-description {
+  margin: 40px 0 28px;
+  color: #777;
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.event-details-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px 24px;
+}
+
+.event-detail-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.event-detail-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #777;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.event-detail-label svg,
+.event-registration-countdown > svg,
+.event-activity-card h2 svg {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.event-detail-item > strong {
+  color: #111;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.event-registration-countdown {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 15px;
+  color: #0643ad;
+  background: #fff9e6;
+  border-radius: 11px;
+}
+
+.event-registration-countdown > svg {
+  flex-basis: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+.event-registration-countdown p {
+  margin: 0;
+  color: #777;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.event-registration-countdown strong {
+  color: #111;
+}
+
+.event-registration-notice {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.event-registration-notice.full {
+  color: #8a4b00;
+  background: #fff7e6;
+}
+
+.event-registration-notice.closed {
+  color: #8f2525;
+  background: #fff0f0;
+}
+
+.event-activity-card {
+  padding: 24px;
+}
+
+.event-activity-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 16px;
+  color: #111;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.event-activity-card h2 svg {
+  width: 19px;
+  height: 19px;
+  color: #0643ad;
+}
+
+.event-activity-empty {
+  margin: 0;
+  color: #777;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.event-activity-list {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event-activity-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eee;
+}
+
+.event-activity-list li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.event-activity-list strong {
+  font-size: 14px;
+}
+
+.event-activity-list p {
+  margin: 5px 0 0;
+  color: #777;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.event-activity-list time {
+  flex: 0 0 auto;
+  color: #777;
+  font-size: 12px;
+}
+
+.event-not-found {
+  text-align: center;
+}
+
+.event-not-found h1 {
+  margin: 0 0 10px;
+  font-size: 24px;
+}
+
+.event-not-found p {
+  margin: 0 0 20px;
+  color: #777;
+  line-height: 1.6;
+}
+
+.event-back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  color: #fff;
+  background: #0643ad;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.event-back-button:hover {
+  background: #04358b;
+}
+
+@media (max-width: 760px) {
+  .event-details-page {
+    width: calc(100% - 28px);
+    padding-top: 28px;
+  }
+
+  .event-back-link {
+    margin-bottom: 24px;
+  }
+
+  .event-details-card,
+  .event-activity-card {
+    padding: 20px;
+    border-radius: 14px;
+  }
+
+  .event-details-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .event-details-statuses {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .event-details-description {
+    margin: 24px 0;
+    font-size: 16px;
+  }
+
+  .event-details-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 16px;
+  }
+
+  .event-detail-item > strong {
+    font-size: 14px;
+  }
+
+  .event-registration-countdown {
+    align-items: flex-start;
+    padding: 13px;
+  }
+
+  .event-registration-countdown p {
+    font-size: 13px;
+  }
+
+  .event-activity-card h2 {
+    font-size: 17px;
+  }
+
+  .event-activity-empty {
+    font-size: 14px;
+  }
+
+  .event-activity-list li {
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 380px) {
+  .event-details-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 12px;
+  }
+
+  .event-details-heading h1 {
+    font-size: 24px;
+  }
+
+  .event-details-eyebrow {
+    font-size: 14px;
+  }
+}
