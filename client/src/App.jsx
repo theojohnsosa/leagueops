@@ -7,6 +7,7 @@ import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
 import VerifyEmail from "./pages/VerifyEmail.jsx";
 import Landing from "./pages/public/Landing.jsx";
+import Events from "./pages/public/Events.jsx";
 import ArchiveDashboard from "./ArchiveDashboard.jsx";
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/events" element={<Events />} />
       <Route path="/verify-email/:token" element={<VerifyEmail />} />
 
       {/* Any authenticated user */}
