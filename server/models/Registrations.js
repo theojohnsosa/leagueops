@@ -4,9 +4,26 @@ export const STATUSES = ["accepted", "rejected", "cancelled"];
 
 const playerSchema = new mongoose.Schema(
   {
-    fullName: { type: String, required: true, trim: true },
-    studentId: { type: String, required: true, trim: true },
-    inGameName: { type: String, required: true, trim: true },
+    firstName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    studentId: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    inGameName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
   },
   { _id: false },
 );
@@ -24,19 +41,39 @@ const registrationSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    teamName: { type: String, trim: true },
-    division: { type: String, enum: ["boys", "girls"] },
-    rankDetails: { type: String, trim: true },
-    players: { type: [playerSchema], default: [] },
-    substitutes: { type: [playerSchema], default: [] },
+    teamName: {
+      type: String,
+      trim: true,
+    },
+    division: {
+      type: String,
+      enum: ["boys", "girls"],
+    },
+    rankDetails: {
+      type: String,
+      trim: true,
+    },
+    players: {
+      type: [playerSchema],
+      default: [],
+    },
+    substitutes: {
+      type: [playerSchema],
+      default: [],
+    },
     status: {
       type: String,
       enum: STATUSES,
       default: "accepted",
       index: true,
     },
-    rejectionReason: { type: String, trim: true },
-    cancelledAt: { type: Date },
+    rejectionReason: {
+      type: String,
+      trim: true,
+    },
+    cancelledAt: {
+      type: Date,
+    },
   },
   { timestamps: true },
 );
