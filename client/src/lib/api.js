@@ -1,7 +1,6 @@
 import axios from "axios";
 
-// The same variable your App already uses. It should end with /api,
-// for example http://localhost:5000/api
+// Should end with /api, for example http://localhost:5000/api
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:5000/api",
   withCredentials: true,
@@ -13,5 +12,6 @@ export function errorMessage(err) {
   const data = err.response.data;
   const detail = data?.errors?.map((e) => e.message).join(" ");
   return [data?.message ?? err.message, detail].filter(Boolean).join(" ");
-}   
+}
+
 export default api;

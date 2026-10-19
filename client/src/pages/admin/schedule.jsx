@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Header from "../../components/Header.jsx";
 import { api, errorMessage } from "../../lib/api.js";
 
 // A badge shows the event's lifecycle only for these statuses.
@@ -95,7 +94,6 @@ export default function ScheduleManager() {
 
   return (
     <>
-      <Header />
       <main className="min-h-screen bg-gray-50">
         <div className="mx-auto max-w-5xl px-5 py-8">
           <h1 className="text-3xl font-bold">Schedule Manager</h1>
@@ -121,7 +119,7 @@ export default function ScheduleManager() {
                 <li key={e._id}>
                   <button
                     type="button"
-                    onClick={() => navigate(`/admin/schedule/${e._id}`)}
+                    onClick={() => navigate(`/schedule-manager/${e._id}`)}
                     className="flex w-full items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 text-left transition-colors hover:border-[#0038a8]/40 hover:bg-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0038a8]"
                   >
                     <div className="min-w-0">

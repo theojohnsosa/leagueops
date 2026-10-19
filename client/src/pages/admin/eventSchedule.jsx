@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import Header from "../../components/Header.jsx";
 import { api, errorMessage } from "../../lib/api.js";
 import BracketView from "../../components/BracketView.jsx";
 
@@ -585,11 +584,10 @@ export default function EventSchedule() {
 
   return (
     <>
-      <Header />
       <main className="min-h-screen bg-gray-50">
         <div className="mx-auto max-w-5xl px-5 py-8">
           <Link
-            to="/admin/schedule"
+            to="/schedule-manager"
             className="inline-flex items-center gap-2 text-sm text-gray-700 hover:text-[#0038a8]"
           >
             <img src="/left-arrow.png" alt="" className="h-4 w-3" />
