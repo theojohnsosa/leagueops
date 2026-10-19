@@ -22,6 +22,7 @@ const formatDate = (value) => {
   if (!value) return "—";
 
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) return "—";
 
   return date.toLocaleDateString("en-US", {
@@ -99,12 +100,6 @@ function Dashboard() {
   const activities = dashboardData?.recentActivity ?? [];
   const eventSummaries = dashboardData?.eventSummaries ?? [];
   const chartColors = ["blue", "red", "yellow", "blue", "red", "yellow"];
-
-  const formatMatchDate = (date) => {
-    if (!date) return "Date TBA";
-
-    return formatDate(date);
-  };
 
   const registrationCount = (event) => event.registration?.total ?? 0;
 
@@ -242,7 +237,7 @@ function Dashboard() {
                 </div>
 
                 <div className="dashboard-match-date">
-                  <strong>{formatMatchDate(match.scheduledDate)}</strong>
+                  <strong>{formatDate(match.scheduledDate)}</strong>
                   <span>{match.startTime || "Time TBA"}</span>
                 </div>
               </article>
@@ -279,11 +274,7 @@ function Dashboard() {
                   </p>
                 </div>
 
-                <time>
-                  {activity.createdAt
-                    ? formatMatchDate(activity.createdAt)
-                    : "—"}
-                </time>
+                <time>{formatDate(activity.createdAt)}</time>
               </article>
             ))}
           </div>
@@ -307,7 +298,6 @@ export default function ArchiveDashboard() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [viewing, setViewing] = useState(null);
-  const [editing, setEditing] = useState(null);
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
@@ -327,18 +317,27 @@ export default function ArchiveDashboard() {
         const archivedEvents = Array.isArray(data) ? data : [];
 
         setEvents(
-          archivedEvents.map((event) => ({
-            ...event,
-            id: event._id,
-            title: event.title || event.name || "Untitled event",
-            archivedAt: event.archivedAt
-              ? new Date(event.archivedAt).toISOString().slice(0, 10)
-              : "",
-            game: event.game || "Unknown game",
-            type: event.type || event.eventType || "Event",
-            status: event.archiveStatus || "archived",
-            description: event.description || "",
-          })),
+          archivedEvents.map((event) => {
+            const archivedDate = event.archivedAt
+              ? new Date(event.archivedAt)
+              : null;
+
+            return {
+              ...event,
+              id: event._id,
+              title: event.title || event.name || "Untitled event",
+              archivedAt:
+                archivedDate && !Number.isNaN(archivedDate.getTime())
+                  ? archivedDate.toISOString().slice(0, 10)
+                  : "",
+              game: event.game || "Unknown game",
+              type: event.type || event.eventType || "Event",
+              archiveStatus: event.archiveStatus || "archived",
+              description: event.description || "",
+              canRestore:
+                event.archiveStatus === "archived" && event.canRestore === true,
+            };
+          }),
         );
       } catch (requestError) {
         if (requestError.code !== "ERR_CANCELED") {
@@ -405,16 +404,29 @@ export default function ArchiveDashboard() {
       );
 
       setViewing(null);
-      setEditing(null);
       setNotice(data.message || "Event restored successfully.");
     } catch (requestError) {
       if (requestError.response?.status === 410) {
         setEvents((current) =>
           current.map((item) =>
             item._id === id || item.id === id
-              ? { ...item, canRestore: false, archiveStatus: "expired" }
+              ? {
+                  ...item,
+                  canRestore: false,
+                  archiveStatus: "expired",
+                }
               : item,
           ),
+        );
+
+        setViewing((current) =>
+          current && (current._id === id || current.id === id)
+            ? {
+                ...current,
+                canRestore: false,
+                archiveStatus: "expired",
+              }
+            : current,
         );
       }
 
@@ -423,14 +435,6 @@ export default function ArchiveDashboard() {
           "Failed to restore event. Please try again.",
       );
     }
-  }
-
-  function saveEdit(event) {
-    setEvents((current) =>
-      current.map((item) => (item._id === event._id ? event : item)),
-    );
-    setEditing(null);
-    setNotice("Changes saved in this demo only.");
   }
 
   const isArchivePage = location.pathname === "/archive";
@@ -459,7 +463,6 @@ export default function ArchiveDashboard() {
               onClick={(event) => {
                 event.preventDefault();
                 setViewing(null);
-                setEditing(null);
                 navigate(path);
               }}
             >
@@ -531,6 +534,7 @@ export default function ArchiveDashboard() {
               <option>Mobile Legends</option>
               <option>MLBB</option>
               <option>Tekken 8</option>
+              <option>League of Legends</option>
             </select>
 
             <select
@@ -539,6 +543,9 @@ export default function ArchiveDashboard() {
               onChange={(event) => setType(event.target.value)}
             >
               <option>All Types</option>
+              <option>tournament</option>
+              <option>tryout</option>
+              <option>campus_event</option>
               <option>Tournament</option>
               <option>Scrimmage</option>
               <option>Tryout</option>
@@ -585,7 +592,7 @@ export default function ArchiveDashboard() {
                     <div className="archive-title-line">
                       <h2>{event.title}</h2>
                       <span className="published-badge">
-                        {event.archiveStatus || "archived"}
+                        {event.archiveStatus}
                       </span>
                     </div>
                     <p>
@@ -601,14 +608,6 @@ export default function ArchiveDashboard() {
                       onClick={() => setViewing(event)}
                     >
                       View
-                    </button>
-
-                    <button
-                      type="button"
-                      className="action-button"
-                      onClick={() => setEditing({ ...event })}
-                    >
-                      Edit
                     </button>
 
                     <button
@@ -647,13 +646,12 @@ export default function ArchiveDashboard() {
         </main>
       )}
 
-      {isArchivePage && (viewing || editing) && (
+      {isArchivePage && viewing && (
         <div
           className="archive-modal-backdrop"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
               setViewing(null);
-              setEditing(null);
             }
           }}
         >
@@ -667,136 +665,57 @@ export default function ArchiveDashboard() {
               className="modal-close"
               type="button"
               aria-label="Close"
-              onClick={() => {
-                setViewing(null);
-                setEditing(null);
-              }}
+              onClick={() => setViewing(null)}
             >
               ×
             </button>
 
-            {editing ? (
-              <>
-                <h2 id="archive-modal-title">Edit archived event</h2>
-                <p>
-                  Editing is currently local-only; changes are not saved to the
-                  server.
-                </p>
+            <h2 id="archive-modal-title">{viewing.title}</h2>
+            <p className="modal-description">
+              {viewing.description || "No description provided."}
+            </p>
 
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    saveEdit(editing);
-                  }}
-                >
-                  <label>
-                    Event name
-                    <input
-                      required
-                      value={editing.title || ""}
-                      onChange={(event) =>
-                        setEditing({ ...editing, title: event.target.value })
-                      }
-                    />
-                  </label>
+            <dl className="archive-details">
+              <div>
+                <dt>Game</dt>
+                <dd>{viewing.game}</dd>
+              </div>
+              <div>
+                <dt>Type</dt>
+                <dd>{viewing.type}</dd>
+              </div>
+              <div>
+                <dt>Archive status</dt>
+                <dd>{viewing.archiveStatus || "archived"}</dd>
+              </div>
+              <div>
+                <dt>Archived</dt>
+                <dd>{formatDate(viewing.archivedAt)}</dd>
+              </div>
+              <div>
+                <dt>Restore deadline</dt>
+                <dd>{formatDate(viewing.restoreDeadline)}</dd>
+              </div>
+            </dl>
 
-                  <label>
-                    Game
-                    <select
-                      value={editing.game || "CODM"}
-                      onChange={(event) =>
-                        setEditing({ ...editing, game: event.target.value })
-                      }
-                    >
-                      <option>CODM</option>
-                      <option>Valorant</option>
-                      <option>Mobile Legends</option>
-                      <option>MLBB</option>
-                      <option>Tekken 8</option>
-                    </select>
-                  </label>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="action-button"
+                onClick={() => setViewing(null)}
+              >
+                Close
+              </button>
 
-                  <label>
-                    Event type
-                    <select
-                      value={editing.type || "Tournament"}
-                      onChange={(event) =>
-                        setEditing({ ...editing, type: event.target.value })
-                      }
-                    >
-                      <option>Tournament</option>
-                      <option>Scrimmage</option>
-                      <option>Tryout</option>
-                      <option>Competition</option>
-                    </select>
-                  </label>
-
-                  <div className="modal-actions">
-                    <button
-                      type="button"
-                      className="action-button"
-                      onClick={() => setEditing(null)}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="action-button modal-save">
-                      Save
-                    </button>
-                  </div>
-                </form>
-              </>
-            ) : (
-              <>
-                <h2 id="archive-modal-title">{viewing.title}</h2>
-                <p className="modal-description">
-                  {viewing.description || "No description provided."}
-                </p>
-
-                <dl className="archive-details">
-                  <div>
-                    <dt>Game</dt>
-                    <dd>{viewing.game}</dd>
-                  </div>
-                  <div>
-                    <dt>Type</dt>
-                    <dd>{viewing.type}</dd>
-                  </div>
-                  <div>
-                    <dt>Archive status</dt>
-                    <dd>{viewing.archiveStatus || "archived"}</dd>
-                  </div>
-                  <div>
-                    <dt>Archived</dt>
-                    <dd>{formatDate(viewing.archivedAt)}</dd>
-                  </div>
-                  <div>
-                    <dt>Restore deadline</dt>
-                    <dd>{formatDate(viewing.restoreDeadline)}</dd>
-                  </div>
-                </dl>
-
-                <div className="modal-actions">
-                  <button
-                    type="button"
-                    className="action-button"
-                    onClick={() => setViewing(null)}
-                  >
-                    Close
-                  </button>
-                  <button
-                    type="button"
-                    className="action-button modal-save"
-                    disabled={!viewing.canRestore}
-                    onClick={() => {
-                      setEditing({ ...viewing });
-                      setViewing(null);
-                    }}
-                  >
-                    Edit
-                  </button>
-                </div>
-              </>
-            )}
+              <button
+                type="button"
+                className="action-button restore-button"
+                disabled={!viewing.canRestore}
+                onClick={() => restoreEvent(viewing._id || viewing.id)}
+              >
+                Restore
+              </button>
+            </div>
           </section>
         </div>
       )}

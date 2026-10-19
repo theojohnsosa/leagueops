@@ -30,6 +30,14 @@ export const reviewEventApproval = asyncHandler(async (req, res) => {
     );
   }
 
+  if (!req.user?._id || !mongoose.isValidObjectId(req.user._id)) {
+    throw new AppError(
+      401,
+      "AUTHENTICATION_REQUIRED",
+      "A valid authenticated user is required.",
+    );
+  }
+
   if (!["approved", "rejected"].includes(decision)) {
     throw new AppError(
       400,
@@ -45,6 +53,8 @@ export const reviewEventApproval = asyncHandler(async (req, res) => {
       "Review note must be a string.",
     );
   }
+
+  const note = typeof reviewNote === "string" ? reviewNote.trim() : "";
 
   const session = await mongoose.startSession();
   let result;
@@ -84,7 +94,6 @@ export const reviewEventApproval = asyncHandler(async (req, res) => {
       }
 
       const reviewedAt = new Date();
-      const note = typeof reviewNote === "string" ? reviewNote.trim() : "";
       const previousStatus = event.status;
 
       request.status = decision;
@@ -97,8 +106,9 @@ export const reviewEventApproval = asyncHandler(async (req, res) => {
       event.reviewedAt = reviewedAt;
       event.reviewNote = note;
 
+      // Approval publishes a draft event; rejection leaves it as a draft.
       if (decision === "approved" && event.status === "draft") {
-        event.status = "upcoming";
+        event.status = "published";
       }
 
       await event.save({ session });
@@ -122,8 +132,14 @@ export const reviewEventApproval = asyncHandler(async (req, res) => {
         action,
         description: `Event ${decision}.`,
         changes: {
-          approvalStatus: { before: "pending", after: decision },
-          status: { before: previousStatus, after: event.status },
+          approvalStatus: {
+            before: "pending",
+            after: decision,
+          },
+          status: {
+            before: previousStatus,
+            after: event.status,
+          },
           reviewNote: note,
         },
         session,

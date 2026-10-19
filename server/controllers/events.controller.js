@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Event from "../models/Events.js";
+import Event, { STATUSES } from "../models/Events.js";
 import Registration from "../models/Registrations.js";
 import ApprovalRequest from "../models/ApprovalRequests.js";
 import Match from "../models/Matches.js";
@@ -19,11 +19,24 @@ const EVENT_FIELDS = [
   "eventStartDate",
   "eventEndDate",
   "registrationOpenDate",
-  "registrationClosedDate",
+  "registrationCloseDate",
   "registrationMode",
   "playersPerTeam",
+  "maxSubstitutes",
   "maxSlots",
 ];
+
+const DATE_FIELDS = [
+  "eventStartDate",
+  "eventEndDate",
+  "registrationOpenDate",
+  "registrationCloseDate",
+];
+
+const ACTIVE_EVENT_FILTER = {
+  isArchived: { $ne: true },
+  archiveStatus: { $nin: ["archived", "expired"] },
+};
 
 function pickEventFields(body = {}) {
   return Object.fromEntries(
@@ -40,8 +53,158 @@ function validateEventId(id) {
   }
 }
 
-function actorId(user) {
-  return user?._id;
+function validateEventDates(fields, existingEvent = null) {
+  const dates = {};
+
+  for (const field of DATE_FIELDS) {
+    const supplied = Object.hasOwn(fields, field);
+    const value = supplied ? fields[field] : existingEvent?.[field];
+
+    if (value == null || value === "") {
+      if (!existingEvent || supplied) {
+        throw new AppError(400, "REQUIRED_DATE", `${field} is required.`);
+      }
+      continue;
+    }
+
+    const date = value instanceof Date ? value : new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      throw new AppError(400, "INVALID_DATE", `${field} must be a valid date.`);
+    }
+
+    dates[field] = date;
+  }
+
+  const eventStartDate = dates.eventStartDate ?? existingEvent?.eventStartDate;
+  const eventEndDate = dates.eventEndDate ?? existingEvent?.eventEndDate;
+  const registrationOpenDate =
+    dates.registrationOpenDate ?? existingEvent?.registrationOpenDate;
+  const registrationCloseDate =
+    dates.registrationCloseDate ?? existingEvent?.registrationCloseDate;
+
+  if (
+    eventStartDate &&
+    eventEndDate &&
+    new Date(eventEndDate) < new Date(eventStartDate)
+  ) {
+    throw new AppError(
+      400,
+      "INVALID_DATE_RANGE",
+      "Event end date must be on or after the start date.",
+    );
+  }
+
+  if (
+    registrationOpenDate &&
+    registrationCloseDate &&
+    new Date(registrationCloseDate) < new Date(registrationOpenDate)
+  ) {
+    throw new AppError(
+      400,
+      "INVALID_REGISTRATION_RANGE",
+      "Registration close date must be on or after the open date.",
+    );
+  }
+
+  return dates;
+}
+
+function validateCapacityFields(fields) {
+  const rules = [
+    [
+      "playersPerTeam",
+      1,
+      "INVALID_TEAM_SIZE",
+      "Players per team must be a positive whole number.",
+    ],
+    [
+      "maxSubstitutes",
+      0,
+      "INVALID_SUBSTITUTES",
+      "Maximum substitutes must be a non-negative whole number.",
+    ],
+    [
+      "maxSlots",
+      1,
+      "INVALID_CAPACITY",
+      "Maximum slots must be a positive whole number.",
+    ],
+  ];
+
+  for (const [field, minimum, code, message] of rules) {
+    if (!Object.hasOwn(fields, field) || fields[field] == null) continue;
+
+    const value = Number(fields[field]);
+
+    if (!Number.isInteger(value) || value < minimum) {
+      throw new AppError(400, code, message);
+    }
+
+    fields[field] = value;
+  }
+}
+
+function normalizeTextFields(fields) {
+  for (const field of ["title", "game"]) {
+    if (!Object.hasOwn(fields, field)) continue;
+
+    if (typeof fields[field] !== "string" || !fields[field].trim()) {
+      throw new AppError(
+        400,
+        "INVALID_FIELD",
+        `${field} must be a non-empty string.`,
+      );
+    }
+
+    fields[field] = fields[field].trim();
+  }
+
+  for (const field of ["season", "description", "venue"]) {
+    if (!Object.hasOwn(fields, field)) continue;
+
+    if (fields[field] != null && typeof fields[field] !== "string") {
+      throw new AppError(400, "INVALID_FIELD", `${field} must be a string.`);
+    }
+
+    if (typeof fields[field] === "string") {
+      fields[field] = fields[field].trim();
+    }
+  }
+
+  if (
+    Object.hasOwn(fields, "type") &&
+    fields.type != null &&
+    !["tournament", "tryout", "campus_event"].includes(fields.type)
+  ) {
+    throw new AppError(400, "INVALID_TYPE", "Invalid event type.");
+  }
+
+  if (
+    Object.hasOwn(fields, "registrationMode") &&
+    fields.registrationMode != null &&
+    !["team", "individual"].includes(fields.registrationMode)
+  ) {
+    throw new AppError(
+      400,
+      "INVALID_REGISTRATION_MODE",
+      "Registration mode must be team or individual.",
+    );
+  }
+}
+
+function assertAuthenticatedActor(user) {
+  const id = user?._id ?? user?.id;
+
+  if (!id || !mongoose.isValidObjectId(id)) {
+    throw new AppError(
+      401,
+      "AUTHENTICATION_REQUIRED",
+      "A valid authenticated user is required.",
+    );
+  }
+
+  return id;
 }
 
 export const getDashboardStats = asyncHandler(async (req, res) => {
@@ -55,11 +218,12 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     events,
     registrationStats,
   ] = await Promise.all([
-    Event.countDocuments({ isArchived: { $ne: true } }),
+    Event.countDocuments(ACTIVE_EVENT_FILTER),
     Registration.countDocuments(),
     Event.countDocuments({
-      status: { $in: ["upcoming", "ongoing"] },
-      isArchived: { $ne: true },
+      ...ACTIVE_EVENT_FILTER,
+      status: { $in: ["published", "ongoing"] },
+      approvalStatus: "approved",
     }),
     ApprovalRequest.countDocuments({ status: "pending" }),
     EventLog.find().sort({ createdAt: -1 }).limit(10).lean(),
@@ -71,20 +235,21 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       .limit(5)
       .populate({
         path: "eventId",
-        select: "title game isArchived",
-        match: { isArchived: { $ne: true } },
+        select: "title game isArchived archiveStatus approvalStatus",
+        match: {
+          ...ACTIVE_EVENT_FILTER,
+          approvalStatus: "approved",
+        },
       })
       .lean()
       .then((matches) => matches.filter((match) => match.eventId)),
-    Event.find({ isArchived: { $ne: true } })
-      .select("title game maxSlots status")
+    Event.find(ACTIVE_EVENT_FILTER)
+      .select("title game maxSlots status approvalStatus")
       .lean(),
     Registration.aggregate([
       {
         $match: {
-          status: {
-            $in: ["pending", "accepted", "rejected", "cancelled"],
-          },
+          status: { $in: ["pending", "accepted", "rejected", "cancelled"] },
         },
       },
       {
@@ -121,6 +286,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       title: event.title,
       game: event.game,
       status: event.status,
+      approvalStatus: event.approvalStatus,
       registration: {
         total: stats?.total ?? 0,
         pending: stats?.pending ?? 0,
@@ -145,7 +311,8 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     };
   });
 
-  res.json({
+  res.status(200).json({
+    success: true,
     stats: {
       totalEvents,
       totalRegistrations,
@@ -158,24 +325,28 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
   });
 });
 
-// Public listing: approved events only; archived and expired events excluded.
 export const getEvents = asyncHandler(async (req, res) => {
   const filter = publicEventFilter();
 
   if (req.query.status) {
+    if (!STATUSES.includes(req.query.status)) {
+      throw new AppError(400, "INVALID_STATUS", "Invalid event status filter.");
+    }
+
     filter.status = req.query.status;
   }
 
-  const events = await Event.find(filter).sort({ createdAt: -1 }).lean();
+  const events = await Event.find(filter)
+    .sort({ eventStartDate: 1, createdAt: -1 })
+    .lean();
 
-  res.json({
+  res.status(200).json({
     success: true,
     count: events.length,
     data: events,
   });
 });
 
-// Public detail: do not reveal draft, pending, rejected, archived, or expired events.
 export const getEventById = asyncHandler(async (req, res) => {
   validateEventId(req.params.id);
 
@@ -188,20 +359,16 @@ export const getEventById = asyncHandler(async (req, res) => {
     throw new AppError(404, "NOT_FOUND", "Event not found.");
   }
 
-  res.json({ success: true, data: event });
+  res.status(200).json({ success: true, data: event });
 });
 
 export const createEvent = asyncHandler(async (req, res) => {
   const fields = pickEventFields(req.body);
+  const createdBy = assertAuthenticatedActor(req.user);
 
-  if (
-    typeof fields.title !== "string" ||
-    !fields.title.trim() ||
-    typeof fields.game !== "string" ||
-    !fields.game.trim()
-  ) {
-    throw new AppError(400, "INVALID", "Title and game are required.");
-  }
+  normalizeTextFields(fields);
+  validateCapacityFields(fields);
+  Object.assign(fields, validateEventDates(fields));
 
   const session = await mongoose.startSession();
   let result;
@@ -212,11 +379,11 @@ export const createEvent = asyncHandler(async (req, res) => {
         [
           {
             ...fields,
-            title: fields.title.trim(),
-            game: fields.game.trim(),
             status: "draft",
             approvalStatus: "pending",
-            createdBy: actorId(req.user),
+            isArchived: false,
+            archiveStatus: "active",
+            createdBy,
           },
         ],
         { session },
@@ -227,7 +394,7 @@ export const createEvent = asyncHandler(async (req, res) => {
           {
             type: "event",
             targetId: event._id,
-            requestedBy: actorId(req.user),
+            requestedBy: createdBy,
             status: "pending",
           },
         ],
@@ -255,7 +422,10 @@ export const createEvent = asyncHandler(async (req, res) => {
         session,
       });
 
-      result = { event, approvalRequest };
+      result = {
+        event: event.toObject(),
+        approvalRequest: approvalRequest.toObject(),
+      };
     });
   } finally {
     await session.endSession();
@@ -277,54 +447,8 @@ export const updateEvent = asyncHandler(async (req, res) => {
     throw new AppError(400, "NO_FIELDS", "Provide fields to update.");
   }
 
-  if (
-    ("title" in fields &&
-      (typeof fields.title !== "string" || !fields.title.trim())) ||
-    ("game" in fields &&
-      (typeof fields.game !== "string" || !fields.game.trim()))
-  ) {
-    throw new AppError(400, "INVALID", "Title and game cannot be empty.");
-  }
-
-  if (
-    ("playersPerTeam" in fields &&
-      (!Number.isInteger(Number(fields.playersPerTeam)) ||
-        Number(fields.playersPerTeam) < 1)) ||
-    ("maxSlots" in fields &&
-      fields.maxSlots != null &&
-      (!Number.isInteger(Number(fields.maxSlots)) ||
-        Number(fields.maxSlots) < 1))
-  ) {
-    throw new AppError(
-      400,
-      "INVALID_CAPACITY",
-      "Team size and slot capacity must be positive whole numbers.",
-    );
-  }
-
-  for (const field of [
-    "eventStartDate",
-    "eventEndDate",
-    "registrationOpenDate",
-    "registrationClosedDate",
-  ]) {
-    if (field in fields && fields[field] != null) {
-      const date = new Date(fields[field]);
-
-      if (Number.isNaN(date.getTime())) {
-        throw new AppError(
-          400,
-          "INVALID_DATE",
-          `${field} is not a valid date.`,
-        );
-      }
-
-      fields[field] = date;
-    }
-  }
-
-  if ("title" in fields) fields.title = fields.title.trim();
-  if ("game" in fields) fields.game = fields.game.trim();
+  normalizeTextFields(fields);
+  validateCapacityFields(fields);
 
   const session = await mongoose.startSession();
   let updatedEvent;
@@ -333,17 +457,31 @@ export const updateEvent = asyncHandler(async (req, res) => {
     await session.withTransaction(async () => {
       const event = await Event.findById(req.params.id).session(session);
 
-      if (!event || event.isArchived || event.archiveStatus !== "active") {
+      if (
+        !event ||
+        event.isArchived ||
+        ["archived", "expired"].includes(event.archiveStatus)
+      ) {
         throw new AppError(404, "NOT_FOUND", "Event not found.");
       }
 
-      if (event.status === "completed" || event.status === "cancelled") {
+      if (event.status === "completed") {
         throw new AppError(
           409,
           "INVALID_STATE",
-          "Completed or cancelled events cannot be edited.",
+          "Completed events cannot be edited.",
         );
       }
+
+      if (event.approvalStatus !== "pending") {
+        throw new AppError(
+          409,
+          "INVALID_STATE",
+          "Only events awaiting approval can be edited.",
+        );
+      }
+
+      Object.assign(fields, validateEventDates(fields, event));
 
       const before = Object.fromEntries(
         Object.keys(fields).map((field) => [field, event.get(field)]),
@@ -370,17 +508,22 @@ export const updateEvent = asyncHandler(async (req, res) => {
         session,
       });
 
-      updatedEvent = event;
+      updatedEvent = event.toObject();
     });
   } finally {
     await session.endSession();
   }
 
-  res.json({ success: true, data: updatedEvent });
+  res.status(200).json({
+    success: true,
+    message: "Event updated successfully.",
+    data: updatedEvent,
+  });
 });
 
 export const completeEvent = asyncHandler(async (req, res) => {
   validateEventId(req.params.id);
+  assertAuthenticatedActor(req.user);
 
   const session = await mongoose.startSession();
   let completedEvent;
@@ -389,7 +532,11 @@ export const completeEvent = asyncHandler(async (req, res) => {
     await session.withTransaction(async () => {
       const event = await Event.findById(req.params.id).session(session);
 
-      if (!event || event.isArchived || event.archiveStatus !== "active") {
+      if (
+        !event ||
+        event.isArchived ||
+        ["archived", "expired"].includes(event.archiveStatus)
+      ) {
         throw new AppError(404, "NOT_FOUND", "Event not found.");
       }
 
@@ -403,14 +550,6 @@ export const completeEvent = asyncHandler(async (req, res) => {
 
       if (event.status === "completed") {
         throw new AppError(409, "INVALID_STATE", "Event is already completed.");
-      }
-
-      if (event.status === "cancelled") {
-        throw new AppError(
-          409,
-          "INVALID_STATE",
-          "Cancelled events cannot be completed.",
-        );
       }
 
       const previousStatus = event.status;
@@ -437,13 +576,13 @@ export const completeEvent = asyncHandler(async (req, res) => {
         session,
       });
 
-      completedEvent = event;
+      completedEvent = event.toObject();
     });
   } finally {
     await session.endSession();
   }
 
-  res.json({
+  res.status(200).json({
     success: true,
     message: "Event completed.",
     data: completedEvent,
